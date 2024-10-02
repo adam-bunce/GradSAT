@@ -1,10 +1,12 @@
+from collections import defaultdict
+
 import pandas as pd
 from ortools.sat.python import cp_model
 from static import *
 from util import *
 
 # TODO:
-#  pre-requisites, credit-restrictions, automate testing output of model (?),
+#  pre-requisites, credit-restrictions
 
 
 # https://calendar.ontariotechu.ca/preview_program.php?catoid=62&poid=13141&returnto=2811
@@ -59,7 +61,6 @@ def apply_first_year_constraints(m: cp_model.CpModel, data: pd.DataFrame):
 
     # Constraint 2: in year 1 we take two electives
     first_year_electives = data[["y1_elective"]].values.flatten()
-    print(first_year_electives)
     m.add(sum(first_year_electives) == 2)
 
     # Constraint 3: we have to take either physics 1 or into to physics
@@ -75,7 +76,6 @@ def apply_first_year_constraints(m: cp_model.CpModel, data: pd.DataFrame):
     math_courses = data.loc[["MATH1010U", "MATH1000U"], ["y1"]]["y1"].to_list()
     m.add(sum(math_courses) == 1)
 
-    # TODO: this is sort of like taking the same course need to not manually handle all these cases
     math_1000u = data.loc[["MATH1000U"], :][all_decision_vars].values.flatten()
     math_1010u = data.loc[["MATH1010U"], :][all_decision_vars].values.flatten()
     # if we take math1000 we cant take math 1010u
@@ -159,9 +159,9 @@ def apply_misc_constraints(m: cp_model.CpModel, data: pd.DataFrame):
     m.add(sum(all_electives) >= 45 // 3)
 
     # Students are required to complete at least 12 credit hours in Computer Science courses at the 4000 level
-    fourth_year_cs_courses = data[data["is_fourth_year"] == True][
-        elective_decision_vars
-    ].values.flatten()
+    fourth_year_cs_courses = data[
+        (data["is_fourth_year"] == True) & (data["is_cs"] == True)
+    ][elective_decision_vars].values.flatten()
     m.add(sum(fourth_year_cs_courses) >= 12 // 3)
 
     # 27 credit hours must be in courses offered by the Faculty of Science
@@ -177,11 +177,13 @@ def apply_misc_constraints(m: cp_model.CpModel, data: pd.DataFrame):
     ][elective_decision_vars].values.flatten()
     m.add(sum(upper_cs_courses) >= 18 // 3)
 
-    # with no more than 15 credit hours being in Computer Science.
-    # 15 + 3(2) = 21
-    # TODO: non-cs science electives? this is wrong b/c we're getting too many cs electives rn
-    cs_electives = data[data["is_cs"]][elective_decision_vars].values.flatten()
-    m.add(sum(cs_electives) <= 21 // 3)
+    # with no more than 15 credit hours being in Computer Science
+    # 27 - 15 = 12
+    # need 12 non-cs science
+    non_cs_science = data[(data["is_cs"] == False) & (data["is_science"] == True)][
+        elective_decision_vars
+    ].values.flatten()
+    m.add(sum(non_cs_science) >= 12 // 3)
 
     # 12 credit hours must be in courses from outside the Faculty of Science
     non_sci_electives = data[data["is_science"] != True][
@@ -218,6 +220,54 @@ def apply_misc_constraints(m: cp_model.CpModel, data: pd.DataFrame):
     # this is encoded in the "45 electives" condition so nothing needed
 
 
+# this is not good! i think that it is working though
+def apply_prerequisites(
+    m: cp_model.CpModel, data: pd.DataFrame
+) -> (list[list[any]], list[any]):
+    res = []
+    res2 = []
+    for taken_class, prereqs in prerequisites.items():
+        class_vars = data.loc[taken_class][all_decision_vars]
+
+        # merge into 1 var (this works fine)
+        took_class = m.new_bool_var(f"took_{taken_class}")
+        m.add_bool_or(class_vars).only_enforce_if(took_class)
+        m.add_bool_and([cv.Not() for cv in class_vars]).only_enforce_if(
+            took_class.Not()
+        )
+
+        res2.append(took_class)
+
+        prerequsite_options_vars = []
+        for i, prereq_options in enumerate(prereqs):
+            took_classes = []
+            for j, prereq_class in enumerate(prereq_options):
+                took_prereq = m.new_bool_var(
+                    f"took_prereq_option_{i}_{prereq_class}_for_{taken_class}"
+                )
+                prereq_vars = data.loc[prereq_class][all_decision_vars].values.flatten()
+                m.add_bool_or(prereq_vars).only_enforce_if(took_prereq)
+                m.add_bool_and([~p for p in prereq_vars]).only_enforce_if(
+                    took_prereq.Not()
+                )
+
+                took_classes.append(took_prereq)
+
+            res.append(took_classes)
+
+            # create variable to keep track of if we met the pre-req or not
+            met_prereq = m.new_bool_var(f"met_{i}_{taken_class}_prereq(s)")
+            # scope issue?
+            m.add_bool_and(took_classes).only_enforce_if(met_prereq)
+            prerequsite_options_vars.append(met_prereq)
+
+        # if we took the class, we should have fulfilled one of the pre-requisite options
+        # res[took_class].extend(prerequsite_options_vars)
+        m.add(sum(prerequsite_options_vars) >= 1).only_enforce_if(took_class)
+
+    return res, res2
+
+
 def evenly_distribute_course_load(m: cp_model.CpModel, data: pd.DataFrame):
     # each year is 30 credit hours which is ~= 10 courses
     all_y1 = data[["y1", "y1_elective"]].values.flatten()
@@ -231,6 +281,7 @@ def evenly_distribute_course_load(m: cp_model.CpModel, data: pd.DataFrame):
 
 
 if __name__ == "__main__":
+
     model = cp_model.CpModel()
     model_vars = init_model(model)
 
@@ -239,6 +290,16 @@ if __name__ == "__main__":
     apply_third_and_fourth_year_constraints(model, model_vars)
     apply_misc_constraints(model, model_vars)
     evenly_distribute_course_load(model, model_vars)
+    prereq_variables, taken_classes = apply_prerequisites(model, model_vars)
+
+    # minimize courses taken (not really needed doing this for variation)
+    model.minimize(sum(model_vars[all_decision_vars].values.flatten()))
+
+    # TESTING:
+    # force us to take adv. grapics -> forces intro to graphics (seems to work)??
+    adv_graphics_y4 = model_vars.loc[["CSCI4110U"]][["y4_elective"]].values.flatten()
+    print(adv_graphics_y4)
+    model.add(adv_graphics_y4[0] == 1)
 
     # You can't take the same course twice (for credits)
     all_courses = model_vars[
@@ -307,5 +368,15 @@ if __name__ == "__main__":
 
             model_vars.to_html("tmp_2.html")
             courses_taken.to_html("tmp.html")
+
+            for _class in taken_classes:
+                print(f"{_class}, {solver.Value(_class)}")
+
+            print("=" * 20)
+
+            for v in prereq_variables:
+                values = [solver.value(t) for t in v]
+                print(f"we took {v}? {values}")
+
     else:
         print(f"No Solution Found")
