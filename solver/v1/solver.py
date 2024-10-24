@@ -1,13 +1,7 @@
-from collections import defaultdict
-
 import pandas as pd
 from ortools.sat.python import cp_model
 from static import *
 from util import *
-
-# TODO:
-#  pre-requisites, credit-restrictions
-
 
 # https://calendar.ontariotechu.ca/preview_program.php?catoid=62&poid=13141&returnto=2811
 
@@ -208,7 +202,7 @@ def apply_misc_constraints(m: cp_model.CpModel, data: pd.DataFrame):
         "COMM1050U",
         "COMM1100U",
         "COMM1320U",
-        "COMM231U",
+        "COMM2311U",
         "COMM2620U",
     ]
     req_communication_courses = data.loc[data.index.isin(communication_electives)][

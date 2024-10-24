@@ -7,7 +7,11 @@ def course_level(course: str) -> int:
     if buf == "":
         return -1
 
-    return int(buf[0])
+    res = int(buf[0])
+    if res > 4:
+        return 4
+
+    return res
 
 
 def is_science(course: str) -> bool:
