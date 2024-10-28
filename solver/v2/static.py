@@ -120,7 +120,6 @@ random_electives = [
     "PHY2030U",
     "PHY2040U",
     "PHY2900U",
-    "PHY2900U",
     "PHY3900U",
     "ENVS1000U",
     "ENVS2000U",
@@ -201,6 +200,7 @@ prerequisites: dict[str, list[str]] = {
     "CSCI3020U": [["CSCI2010U", "CSCI2050U"]],
     "CSCI3150U": [["CSCI2050U"]],
     "CSCI3310U": [["CSCI2020U", "CSCI2050U"]],
+    # TODO: something is messed up here
     "CSCI4310U": [["CSCI3020U"], ["CSCI3310U"]],
     "CSCI4420U": [
         ["CSCI4410U"]
@@ -218,3 +218,15 @@ years = ["Y1", "Y2", "Y3", "Y4"]
 semesters = ["Fall", "Winter"]
 
 all_semesters = [f"{year}_{semester}" for year in years for semester in semesters]
+
+int_to_semester = {
+    1: "Y1_Fall",
+    2: "Y1_Winter",
+    3: "Y2_Fall",
+    4: "Y2_Winter",
+    5: "Y3_Fall",
+    6: "Y3_Winter",
+    7: "Y4_Fall",
+    8: "Y4_Winter",
+    9: "unknown",
+}

@@ -1,7 +1,9 @@
 import csv
 import logging
+from collections import defaultdict
 from enum import Enum
 from typing import Optional
+from dependent_variables import TakenBeforeDict, AllTakenDict, are_all_true
 
 import numpy as np
 from pydantic import (
@@ -16,7 +18,7 @@ from pydantic import (
 from ortools.sat.python import cp_model
 import pandas as pd
 
-from solver.v2.static import all_courses, all_semesters, prerequisites
+from solver.v2.static import all_courses, all_semesters, prerequisites, int_to_semester
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)s:%(message)s",
@@ -161,7 +163,17 @@ class GraduationRequirementsConfig(BaseModel):
 
 
 class GraduationRequirementsSolution(BaseModel):
-    taken_courses: tuple[str, int]
+    taken_courses: dict[int, list[str]]
+
+    def __str__(self):
+        if len(self.taken_courses) == 0:
+            return "no courses taken."
+
+        buf = ""
+        for semester in sorted(self.taken_courses.keys()):
+            buf += f"{int_to_semester[semester]}: {self.taken_courses[semester]}\n"
+
+        return buf
 
 
 # keep meta data about courses separate and do lookups using index of panda db (course str name)
@@ -178,12 +190,19 @@ class _CourseVariables:
         # unknowns
         self.courses: pd.DataFrame = self._init_unknown_variables()
 
-        # dependant variables
+        # dependent variables
         self.taken_in: pd.Series = self._init_taken_in()
         self.taken: pd.Series = self._init_taken()
+        self.all_taken = AllTakenDict(self.model, self.taken)
+        self.taken_before = TakenBeforeDict(
+            self.model, self.taken_in, self.taken, self.all_taken
+        )
 
     def _init_unknown_variables(self) -> pd.DataFrame:
         variables = np.empty((len(all_courses), len(all_semesters)), dtype=object)
+        # TODO: logger option
+        print(len(all_semesters), "semesters")
+        print(len(all_courses), "courses")
 
         for i, course in enumerate(all_courses):
             for j, semester in enumerate(all_semesters):
@@ -191,11 +210,10 @@ class _CourseVariables:
 
         return pd.DataFrame(variables, index=all_courses, columns=all_semesters)
 
+    # issue with 9 being valid
     def _init_taken_in(self):
         def func(row: pd.Series) -> cp_model.IntVar:
-            var = self.model.new_int_var(
-                lb=0, ub=len(row) + 1, name=f"{row.name}_taken_in"
-            )
+            var = self.model.new_int_var(lb=0, ub=len(row), name=f"{row.name}_taken_in")
             self.model.add_map_domain(var, row, offset=1)
             return var
 
@@ -231,7 +249,6 @@ class GraduationRequirementsSolver:
         self.config = config
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
-        self.tmp = []
 
         # TODO: parse and read csv or db, use that to create variables
 
@@ -254,7 +271,7 @@ class GraduationRequirementsSolver:
 
         self._class_vars.courses.apply(limit_courses_per_semester, axis=0)
 
-        self.model.add(sum(self._class_vars.courses.values.flatten()) > 30)
+        self.model.add(sum(self._class_vars.courses.values.flatten()) >= 30)
 
         def must_take(row: pd.Series):
             c = sum(row) >= 1
@@ -272,68 +289,27 @@ class GraduationRequirementsSolver:
         for option in self.instance.one_of:
             one_of(option)
 
-        def apply_pre_requisite(
-            course, prerequisite_options
-        ) -> list[cp_model.BoolVarT]:
-            course_taken = self._class_vars.get_course_taken(course)
-            course_taken_in = self._class_vars.get_course_taken_in(course)
+        def apply_pre_requisite(course: str, prerequisite_options: list[str]):
+            course_taken = self._class_vars.taken[course]
 
-            met_prerequisite_options_variables = []
-            for i, prerequisite_option in enumerate(prerequisite_options):
-                prerequisites_taken_in = [
-                    self._class_vars.get_course_taken_in(course_code)
-                    for course_code in prerequisite_option
-                ]
-
-                prerequisites_taken_before_class = []
-                # these are more dependant variables maybe they should be kept around for use in future?
-                for prereq_name, prereq_taken_in in zip(
-                    prerequisite_option, prerequisites_taken_in
-                ):
-                    prereq_taken = self._class_vars.get_course_taken(prereq_name)
-                    took_prereq_before_class = self.model.new_bool_var(
-                        f"took_{prereq_taken_in}_before_{course}?"
-                    )
-                    self.model.add(prereq_taken_in < course_taken_in).only_enforce_if(
-                        took_prereq_before_class
-                    )
-                    self.model.add(prereq_taken_in >= course_taken_in).only_enforce_if(
-                        ~took_prereq_before_class
-                    )
-                    self.model.add(prereq_taken_in != 0).only_enforce_if(
-                        took_prereq_before_class
-                    )
-                    print(prereq_taken)
-
-                    prerequisites_taken_before_class.append(took_prereq_before_class)
-
-                met_prereq_option = self.model.new_bool_var(
-                    f"met_prereq_option_{i}_{prerequisite_option}"
+            prereqs_taken_before_course = [
+                are_all_true(
+                    self.model,
+                    [
+                        self._class_vars.taken_before[(prereq, course)]
+                        for prereq in prequisite_option
+                    ],
                 )
+                for prequisite_option in prerequisite_options
+            ]
 
-                # took all before class for this option
-                self.model.add(
-                    sum(prerequisites_taken_before_class)
-                    == len(prerequisites_taken_before_class)
-                ).only_enforce_if(met_prereq_option)
-
-                self.model.add(
-                    sum(prerequisites_taken_before_class)
-                    != len(prerequisites_taken_before_class)
-                ).only_enforce_if(~met_prereq_option)
-
-                met_prerequisite_options_variables.append(met_prereq_option)
-
-            # one option must be met
-            self.model.add_bool_or(met_prerequisite_options_variables).only_enforce_if(
+            # one of the pre-req combos must be met if we're going to take the course
+            self.model.add_at_least_one(prereqs_taken_before_course).only_enforce_if(
                 course_taken
             )
-            return met_prerequisite_options_variables
 
-        # TODO: loop over all and do this
-        self.tmp = apply_pre_requisite("PHY1020U", prerequisites["PHY1020U"])
-        self.tmp = apply_pre_requisite("CSCI3090U", prerequisites["CSCI3090U"])
-        self.tmp = apply_pre_requisite("CSCI2010U", prerequisites["CSCI2010U"])
+        for course, prerequisite_options in prerequisites.items():
+            apply_pre_requisite(course, prerequisite_options)
 
     def _build_model(self):
         self._add_constraints()
@@ -347,18 +323,18 @@ class GraduationRequirementsSolver:
         status = self.solver.solve(self.model)
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
 
-            for v in self._class_vars.taken_in:
-                value = self.solver.value(v)
+            courses_taken = defaultdict(list)
+            for i, v in enumerate(self._class_vars.taken_in.values):
+                value = self.solver.value(v)  # linter err idk y
                 if value != 0:
-                    print(v, value)
+                    courses_taken[value].append(
+                        self._class_vars.taken_in.index.tolist()[i]
+                    )
 
-            for v in self.tmp:
-                value = self.solver.value(v)
-                print(v, value)
-
-            return GraduationRequirementsSolution(taken_courses=("no", 1))
+            return GraduationRequirementsSolution(taken_courses=courses_taken)
         else:
             print("No Solution")
+            return GraduationRequirementsSolution(taken_courses=dict())
 
     def take_class(self, class_name: str):
         self.model.add(self._class_vars.get_course_taken(class_name) == 1)
