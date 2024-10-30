@@ -1,2 +1,5 @@
-.env
-.idea
+*.env
+*.idea
+*.jar
+solver/v2/parser/generated
+/misc

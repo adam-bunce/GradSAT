@@ -1,4 +1,3 @@
-import csv
 import logging
 from collections import defaultdict
 from enum import Enum
@@ -11,7 +10,6 @@ from pydantic import (
     Field,
     constr,
     PositiveFloat,
-    NonNegativeInt,
     PositiveInt,
     NonNegativeFloat,
 )
@@ -19,6 +17,7 @@ from ortools.sat.python import cp_model
 import pandas as pd
 
 from solver.v2.static import all_courses, all_semesters, prerequisites, int_to_semester
+from solver.v2.util import course_level, get_code
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)s:%(message)s",
@@ -89,7 +88,7 @@ class Course(BaseModel):
     laboratory_hours: NonNegativeFloat
     tutorial_hours: NonNegativeFloat
 
-    # DNF list (1030 and 1050) or 1060
+    # DNF list (1030 and 1050) or 1060 -> [[1030, 1050], [1060]]
     credit_restrictions: list[list[str]]
     pre_requisites: list[list[str]]
     post_requisites: list[list[str]]
@@ -101,55 +100,43 @@ class Course(BaseModel):
         return f"{self.course_name} ({self.course_prefix}{str(self.course_code)})"
 
 
-# maybe there's a way to filter a dataframe like this easier?
-class CourseFilter(BaseModel):
-    lt: Optional[int] = Field(
+class CourseType(Enum):
+    Elective = "Elective"
+    Core = "Core"
+    All = "All"
+
+
+class FilterConstraint(BaseModel):
+    """
+    Defaults to all if not specified. filter narrows.
+    """
+
+    lte: Optional[int] = Field(
         description="maximum credit hours for filters", default=None
     )
-    gt: Optional[int] = Field(
-        descriptino="minimum credit hours for filters", default=None
+    gte: Optional[int] = Field(
+        description="minimum credit hours for filters", default=None
     )
-    program: Optional[list[Programs]] = None
+    program: Optional[list[str]] = None
     year_levels: Optional[list[PositiveInt]] = None
+    type: Optional[CourseType] = CourseType.Elective
 
 
-# i forget why i made this?
-# class CourseFilters(BaseModel):
-#     count: int
-#     course_filter: CourseFilter
-
-
-# antlr DSL seems better than this (if i'm generalizing)
-# TODO: finish this class.
-#   then start working on the instance
-#   then the solver
 class ProgramMap(BaseModel):
-    # TODO: repalce with course obj
-    required_courses: list[str]
+    required_courses: list[str]  # TODO: replace with parsed course obj
     one_of: list[list[str]]
-    min_of_type: list[CourseFilter]
-    max_of_type: list[CourseFilter]
-    min_electives: int
+    filter_constraints: list[FilterConstraint]
 
 
-# instance of the problem
 class GraduationRequirementsInstance:
     def __init__(self, program_map: ProgramMap):
         self.required_courses = program_map.required_courses
         self.one_of = program_map.one_of
-        self.min_of_type = program_map.min_of_type
-        self.max_of_type = program_map.max_of_type
-        self.min_electives = program_map.min_electives
-
-        # wrong, could have overlap
-        self.total_courses = (
-            len(self.required_courses)
-            + len(self.one_of)
-            + len(self.min_of_type)
-            + self.min_electives
-        )
+        self.filter_constraints = program_map.filter_constraints
 
 
+# TODO: use this and setup logging
+#  also add print stats option
 class GraduationRequirementsConfig(BaseModel):
     time_limit: PositiveFloat = Field(
         default=60.0, description="Time limit in seconds."
@@ -169,9 +156,13 @@ class GraduationRequirementsSolution(BaseModel):
         if len(self.taken_courses) == 0:
             return "no courses taken."
 
-        buf = ""
+        total_courses_taken = sum(map(len, self.taken_courses.values()))
+        buf = f"took {total_courses_taken} courses\n"
         for semester in sorted(self.taken_courses.keys()):
-            buf += f"{int_to_semester[semester]}: {self.taken_courses[semester]}\n"
+            buf += f"{int_to_semester[semester]:9}: "
+            for course in self.taken_courses[semester]:
+                buf += f"{course:13} "
+            buf += "\n"
 
         return buf
 
@@ -193,6 +184,8 @@ class _CourseVariables:
         # dependent variables
         self.taken_in: pd.Series = self._init_taken_in()
         self.taken: pd.Series = self._init_taken()
+        self.taken_as_elective, self.taken_as_core = self._init_taken_as()
+
         self.all_taken = AllTakenDict(self.model, self.taken)
         self.taken_before = TakenBeforeDict(
             self.model, self.taken_in, self.taken, self.all_taken
@@ -203,6 +196,7 @@ class _CourseVariables:
         # TODO: logger option
         print(len(all_semesters), "semesters")
         print(len(all_courses), "courses")
+        # TODO: total required_courses/instance/problem_instance naming is awkward i forget which is which, make a standard
 
         for i, course in enumerate(all_courses):
             for j, semester in enumerate(all_semesters):
@@ -210,7 +204,6 @@ class _CourseVariables:
 
         return pd.DataFrame(variables, index=all_courses, columns=all_semesters)
 
-    # issue with 9 being valid
     def _init_taken_in(self):
         def func(row: pd.Series) -> cp_model.IntVar:
             var = self.model.new_int_var(lb=0, ub=len(row), name=f"{row.name}_taken_in")
@@ -227,6 +220,27 @@ class _CourseVariables:
 
         return self.courses.apply(func, axis=1)
 
+    def _init_taken_as(self) -> tuple[pd.Series, pd.Series]:
+        def func(row: pd.Series) -> tuple[cp_model.BoolVarT, cp_model.BoolVarT]:
+            elective_var = self.model.new_bool_var(name=f"{row.name}∈elective?")
+            core_var = self.model.new_bool_var(name=f"{row.name}∈core?")
+            course_taken = self.taken[row.name]
+
+            # if the course is taken, it must be a core course or elective course
+            self.model.add(sum([core_var, elective_var]) == 1).only_enforce_if(
+                course_taken
+            )
+            self.model.add(course_taken == 1).only_enforce_if(elective_var)
+            self.model.add(course_taken == 1).only_enforce_if(core_var)
+
+            return elective_var, core_var
+
+        tmp: pd.Series = self.courses.apply(func, axis=1)
+        taken_as_elective = tmp.apply(lambda x: x[0])
+        taken_as_core = tmp.apply(lambda x: x[1])
+        return taken_as_elective, taken_as_core
+
+    # TODO: get rid of this, leaky abstraction
     def get_courses_variables(self, course_list: list[str]) -> pd.DataFrame:
         return self.courses.loc[course_list]
 
@@ -241,18 +255,18 @@ class _CourseVariables:
 class GraduationRequirementsSolver:
     def __init__(
         self,
-        instance: GraduationRequirementsInstance,
+        problem_instance: GraduationRequirementsInstance,
         config: GraduationRequirementsConfig,
         csv_path: str,
     ):
-        self.instance = instance
+        self.problem_instance = problem_instance
         self.config = config
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
 
         # TODO: parse and read csv or db, use that to create variables
 
-        self._class_vars = _CourseVariables(instance, self.model)
+        self._class_vars = _CourseVariables(problem_instance, self.model)
         self._build_model()
 
     def _add_constraints(self):
@@ -271,22 +285,21 @@ class GraduationRequirementsSolver:
 
         self._class_vars.courses.apply(limit_courses_per_semester, axis=0)
 
-        self.model.add(sum(self._class_vars.courses.values.flatten()) >= 30)
-
         def must_take(row: pd.Series):
-            c = sum(row) >= 1
+            c = row == 1
             self.model.add(c)
             return c
 
-        self._class_vars.get_courses_variables(self.instance.required_courses).apply(
-            must_take, axis=1
+        self._class_vars.taken_as_core[self.problem_instance.required_courses].apply(
+            must_take
         )
 
         def one_of(class_options: list[str]):
-            c = self._class_vars.get_courses_variables(class_options).sum().sum() >= 1
+            # one of these must be taken as core
+            c = self._class_vars.taken_as_core.loc[class_options].sum() == 1
             self.model.add(c)
 
-        for option in self.instance.one_of:
+        for option in self.problem_instance.one_of:
             one_of(option)
 
         def apply_pre_requisite(course: str, prerequisite_options: list[str]):
@@ -311,9 +324,67 @@ class GraduationRequirementsSolver:
         for course, prerequisite_options in prerequisites.items():
             apply_pre_requisite(course, prerequisite_options)
 
+        def apply_filter_constraint(f: FilterConstraint):
+            # TODO: this is hacky i need to read the csv and include
+            #  metadata about courses in there instead of parsing codes
+
+            match f.type:
+                case CourseType.Elective:
+                    courses_to_filter = [
+                        c
+                        for c in zip(
+                            self._class_vars.taken_as_elective.index,
+                            self._class_vars.taken_as_elective.values,
+                        )
+                    ]
+                case CourseType.Core:
+                    courses_to_filter = [
+                        c
+                        for c in zip(
+                            self._class_vars.taken_as_core.index,
+                            self._class_vars.taken_as_core.values,
+                        )
+                    ]
+                case CourseType.All:
+                    courses_to_filter = [
+                        c
+                        for c in zip(
+                            self._class_vars.taken.index,
+                            self._class_vars.taken.values,
+                        )
+                    ]
+                case _:
+                    raise Exception("Unhandled CourseType")
+
+            if f.program:
+                courses_to_filter = [
+                    (course_code, course_taken_var)
+                    for course_code, course_taken_var in courses_to_filter
+                    if get_code(course_code) in f.program
+                ]
+
+            if f.year_levels:
+                courses_to_filter = [
+                    (course_code, course_taken_var)
+                    for course_code, course_taken_var in courses_to_filter
+                    if course_level(course_code) in f.year_levels
+                ]
+
+            # 2. assert count is below thresh or
+            filtered_courses = [c for _, c in courses_to_filter]
+            # might be bad to assume that courses are all 3 credit hours
+            COURSE_CREDIT_HOURS = 3
+            if f.lte:
+                self.model.add(sum(filtered_courses) <= (f.lte // COURSE_CREDIT_HOURS))
+            if f.gte:
+                self.model.add(sum(filtered_courses) >= (f.gte // COURSE_CREDIT_HOURS))
+
+        for filter_constraint in self.problem_instance.filter_constraints:
+            apply_filter_constraint(filter_constraint)
+
     def _build_model(self):
         self._add_constraints()
-        # add objective?
+        self.model.minimize(sum(self._class_vars.courses.values.flatten()))
 
     def solve(self) -> GraduationRequirementsSolution:
         self.solver.parameters.max_time_in_seconds = self.config.time_limit
@@ -322,18 +393,19 @@ class GraduationRequirementsSolver:
 
         status = self.solver.solve(self.model)
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-
             courses_taken = defaultdict(list)
             for i, v in enumerate(self._class_vars.taken_in.values):
-                value = self.solver.value(v)  # linter err idk y
+                class_name = self._class_vars.taken_in.index.tolist()[i]
+                value = self.solver.value(v)
                 if value != 0:
                     courses_taken[value].append(
-                        self._class_vars.taken_in.index.tolist()[i]
+                        class_name
+                        + f"_({"E" if self.solver.value(self._class_vars.taken_as_elective[class_name]) else "C"})"
                     )
 
             return GraduationRequirementsSolution(taken_courses=courses_taken)
         else:
-            print("No Solution")
+            print(f"No Solution {self.solver.status_name()}")
             return GraduationRequirementsSolution(taken_courses=dict())
 
     def take_class(self, class_name: str):

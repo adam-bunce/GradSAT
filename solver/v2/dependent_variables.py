@@ -18,6 +18,7 @@ def are_all_true(
     return all_vars_true
 
 
+# NOTE: could also use @cache and just a function? then its not really a built in variable so i like it less
 class AllTakenDict(dict):
     def __init__(self, model: cp_model.CpModel, taken: pd.Series):
         super().__init__()
@@ -32,6 +33,7 @@ class AllTakenDict(dict):
         )
 
         taken_vars = [self.taken[course_name] for course_name in key]
+        # all_taken = are_all_true(self.model, taken_vars)
 
         self.model.add_bool_and(taken_vars).only_enforce_if(all_taken)
         self.model.add_bool_or(
@@ -59,17 +61,10 @@ class TakenBeforeDict(dict):
     def __missing__(self, key):
         assert len(key) == 2, "Key must contain exactly two values."
         class_1, class_2 = key
-        print(class_2)
 
         class_1_taken_before_class_2 = self.model.new_bool_var(
             f"{class_1}_taken_before_{class_2}?"
         )
-
-        # NOTE: issue is that when its 0 its still there and its not lower
-        # so i need to only apply some of these is the class is gonna be taken otherwise
-
-        # i think i need to always do .only_enforce_if's here because
-        # otherwise we apply these to all courses even if tehyre not used?
 
         # can only be 'taken before' if both courses are taken
         class_1_and_class_2_taken = self.all_taken[(class_1, class_2)]
@@ -77,7 +72,7 @@ class TakenBeforeDict(dict):
             self.taken[class_2]
         )
 
-        # class_1 must be taken_in year lower than class_2
+        # class_1 must be taken_in year lower than class_2, if we take class_2
         self.model.add(self.taken_in[class_1] < self.taken_in[class_2]).only_enforce_if(
             self.taken[class_2]
         )

@@ -146,7 +146,6 @@ credit_restrictions: dict[str, list[str]] = {
     "CSCI3090U": ["ENGR4860U", "SOFE4860U"],
     "CSCI4620U": ["ENGR4850U", "SOFE4850U"],
     "CSCI3060U": ["SOFE3980U"],
-    "CSCI4020U": ["SOFE3960U"],
     "CSCI3020U": ["SOFE3850U"],
     "CSCI3310": ["CSCI3020U", "CSCI3150U"],
 }
@@ -200,7 +199,6 @@ prerequisites: dict[str, list[str]] = {
     "CSCI3020U": [["CSCI2010U", "CSCI2050U"]],
     "CSCI3150U": [["CSCI2050U"]],
     "CSCI3310U": [["CSCI2020U", "CSCI2050U"]],
-    # TODO: something is messed up here
     "CSCI4310U": [["CSCI3020U"], ["CSCI3310U"]],
     "CSCI4420U": [
         ["CSCI4410U"]
