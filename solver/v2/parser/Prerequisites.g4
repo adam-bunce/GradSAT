@@ -1,25 +1,12 @@
 grammar Prerequisites;
 
 expression
-    : andExpr
-    | orExpr
-    | expression AND expression
+    : expression AND expression
     | expression OR expression
     | LPAREN expression RPAREN
-    | course
+    | COURSE
     ;
 
-andExpr
-    : course (AND course)+
-    ;
-
-orExpr
-    : course (OR course)+
-    ;
-
-course
-    : COURSE
-    ;
 
 fragment DIGIT: '0'.. '9';
 fragment LETTER: 'a'..'z' | 'A'..'Z';
