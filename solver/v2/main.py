@@ -6,6 +6,13 @@ from model import (
     FilterConstraint,
     CourseType,
 )
+from solver.v2.static import (
+    all_semesters,
+    all_courses,
+    prerequisites,
+    credit_restrictions,
+)
+
 
 # https://calendar.ontariotechu.ca/preview_program.php?catoid=62&poid=13141&returnto=2811
 
@@ -86,8 +93,14 @@ def main():
         ],
     )
 
-    gr_instance = GraduationRequirementsInstance(program_map=cs_program_map)
-    gr_config = GraduationRequirementsConfig()
+    gr_instance = GraduationRequirementsInstance(
+        program_map=cs_program_map,
+        courses=all_courses,
+        semesters=all_semesters,
+        prerequisites=prerequisites,
+        cross_listed=credit_restrictions,
+    )
+    gr_config = GraduationRequirementsConfig(print_stats=True)
     solver = GraduationRequirementsSolver(
         problem_instance=gr_instance, config=gr_config, csv_path="none"
     )

@@ -1,6 +1,37 @@
 import csv
 
-from solver.v2.model import Course, Programs
+from solver.v2.static import Programs
+
+from pydantic import (
+    BaseModel,
+    Field,
+    constr,
+    NonNegativeFloat,
+)
+
+
+class Course(BaseModel):
+    year_level: int = Field(description="the year level of the course; 1,2,3,4")
+    program: Programs = Field(description="program the course is part of")
+    course_prefix: constr(min_length=3, max_length=4)
+    course_code: constr(min_length=5, max_length=5)
+    course_name: str
+
+    credit_hours: NonNegativeFloat
+    lecture_hours: NonNegativeFloat
+    laboratory_hours: NonNegativeFloat
+    tutorial_hours: NonNegativeFloat
+
+    # DNF list (1030 and 1050) or 1060 -> [[1030, 1050], [1060]]
+    credit_restrictions: list[list[str]]
+    pre_requisites: list[list[str]]
+    post_requisites: list[list[str]]
+    pre_requisites_with_concurrency: list[list[str]]
+    co_requisites: list[list[str]]
+    credit_restrictions: list[list[str]]
+
+    def __str__(self) -> str:
+        return f"{self.course_name} ({self.course_prefix}{str(self.course_code)})"
 
 
 def c(
@@ -28,6 +59,7 @@ def c(
     )
 
 
+# parse csv into smth like this indexable by course code
 # fmt:off
 course_catalog: list[Course] = [
     c(1, Programs.science, "CSCI", "1030U", "Introduction to Computer Science", 3, 3, 3, [["BUSI1830U", "CSCI1020U", "CSCI1030U", "CSCI1600U"]], [], []),

@@ -8,7 +8,6 @@ import numpy as np
 from pydantic import (
     BaseModel,
     Field,
-    constr,
     PositiveFloat,
     PositiveInt,
     NonNegativeFloat,
@@ -16,88 +15,11 @@ from pydantic import (
 from ortools.sat.python import cp_model
 import pandas as pd
 
-from solver.v2.static import all_courses, all_semesters, prerequisites, int_to_semester
-from solver.v2.util import course_level, get_code
-
-logging.basicConfig(
-    format="%(asctime)s %(levelname)s:%(message)s",
-    level=logging.DEBUG,
-    datefmt="%m/%d/%Y %H:%M:%S %z",
+from solver.v2.static import (
+    int_to_semester,
+    all_courses,
 )
-_logger = logging.getLogger(__name__)
-
-
-class Programs(Enum):
-    academic_learning_and_success = "Academic Learning and Success"
-    automotive_engineering = "Automotive Engineering"
-    biology = "Biology"
-    business = "Business"
-    chemistry = "Chemistry"
-    communication = "Communication"
-    computer_science = "Computer Science"
-    criminology_and_justice = "Criminology and Justice"
-    curriculum_studies = "Curriculum Studies"
-    economics = "Economics"
-    education = "Education"
-    esadt = "Educational Studies and Digital Technology"
-    electrical_engineering = "Electrical Engineering"
-    energy_sys_and_nuclear = "Energy Systems and Nuclear Science"
-    engineering = "Engineering"
-    environmental_science = "Environmental Science"
-    forensic_psychology = "Forensic Psychology"
-    forensic_science = "Forensic Science"
-    health_science = "Health Science"
-    indigenous = "Indigenous"
-    information_technology = "Information Technology"
-    integrated_mathematics_and_computer_science = (
-        "Integrated Mathematics and Computer Science"
-    )
-    kinesiology = "Kinesiology"
-    legal_studies = "Legal Studies"
-    liberal_studies = "Liberal Studies"
-    manufacturing_engineering = "Manufacturing Engineering"
-    mathematics = "Mathematics"
-    mechanical_engineering = "Mechanical Engineering"
-    mechatronics_engineering = "Mechatronics Engineering"
-    medical_laboratory_science = "Medical Laboratory Science"
-    neuroscience = "Neuroscience"
-    nuclear = "Nuclear"
-    nursing = "Nursing"
-    physics = "Physics"
-    political_science = "Political Science"
-    psychology = "Psychology"
-    radiation_science = "Radiation Science"
-    science = "Science"
-    science_coop = "Science Co-op"
-    social_science = "Social Science"
-    sociology = "Sociology"
-    software_engineering = "Software Engineering"
-    statistics = "Statistics"
-    sustainable_energy_systems = "Sustainable Energy Systems"
-
-
-class Course(BaseModel):
-    year_level: int = Field(description="the year level of the course; 1,2,3,4")
-    program: Programs = Field(description="program the course is part of")
-    course_prefix: constr(min_length=3, max_length=4)
-    course_code: constr(min_length=5, max_length=5)
-    course_name: str
-
-    credit_hours: NonNegativeFloat
-    lecture_hours: NonNegativeFloat
-    laboratory_hours: NonNegativeFloat
-    tutorial_hours: NonNegativeFloat
-
-    # DNF list (1030 and 1050) or 1060 -> [[1030, 1050], [1060]]
-    credit_restrictions: list[list[str]]
-    pre_requisites: list[list[str]]
-    post_requisites: list[list[str]]
-    pre_requisites_with_concurrency: list[list[str]]
-    co_requisites: list[list[str]]
-    credit_restrictions: list[list[str]]
-
-    def __str__(self) -> str:
-        return f"{self.course_name} ({self.course_prefix}{str(self.course_code)})"
+from solver.v2.util import course_level, get_code, print_statistics
 
 
 class CourseType(Enum):
@@ -123,30 +45,41 @@ class FilterConstraint(BaseModel):
 
 
 class ProgramMap(BaseModel):
-    required_courses: list[str]  # TODO: replace with parsed course obj
+    required_courses: list[str]
     one_of: list[list[str]]
     filter_constraints: list[FilterConstraint]
 
 
 class GraduationRequirementsInstance:
-    def __init__(self, program_map: ProgramMap):
+    def __init__(
+        self,
+        program_map: ProgramMap,
+        courses: list[str],
+        semesters: list[str],
+        prerequisites: dict[str, list[str]],
+        cross_listed: dict[str, list[str]],
+    ):
+        # specific case
         self.required_courses = program_map.required_courses
         self.one_of = program_map.one_of
         self.filter_constraints = program_map.filter_constraints
 
+        # world
+        self.course_codes: list[str] = courses
+        self.semester_names: list[str] = semesters
+        self.prerequisites: dict[str, list[str]] = prerequisites
+        self.cross_listed: dict[str, list[str]] = cross_listed
 
-# TODO: use this and setup logging
-#  also add print stats option
+
 class GraduationRequirementsConfig(BaseModel):
-    time_limit: PositiveFloat = Field(
-        default=60.0, description="Time limit in seconds."
-    )
+    time_limit: PositiveFloat = Field(default=5.0, description="Time limit in seconds.")
     opt_tol: NonNegativeFloat = Field(
         default=0.01, description="Optimality tolerance (1% gap allowed)."
     )
-    log_search_progress: bool = Field(
-        default=False, description="Whether to log the search progress."
+    log_model_building: bool = Field(
+        default=False, description="Whether to log the building progress."
     )
+    print_stats: bool = Field(default=False, description="display search stats")
 
 
 class GraduationRequirementsSolution(BaseModel):
@@ -167,15 +100,15 @@ class GraduationRequirementsSolution(BaseModel):
         return buf
 
 
-# keep meta data about courses separate and do lookups using index of panda db (course str name)
-# have dependent variables in other variables and create lookup functions to use them
 class _CourseVariables:
     def __init__(
         self,
-        instance: GraduationRequirementsInstance,
+        courses: list[str],
+        semesters: list[str],
         model: cp_model.CpModel,
     ):
-        self.instance = instance
+        self.course_codes: list[str] = courses
+        self.semester_names: list[str] = semesters
         self.model = model
 
         # unknowns
@@ -192,17 +125,17 @@ class _CourseVariables:
         )
 
     def _init_unknown_variables(self) -> pd.DataFrame:
-        variables = np.empty((len(all_courses), len(all_semesters)), dtype=object)
-        # TODO: logger option
-        print(len(all_semesters), "semesters")
-        print(len(all_courses), "courses")
-        # TODO: total required_courses/instance/problem_instance naming is awkward i forget which is which, make a standard
+        variables = np.empty(
+            (len(self.course_codes), len(self.semester_names)), dtype=object
+        )
 
-        for i, course in enumerate(all_courses):
-            for j, semester in enumerate(all_semesters):
+        for i, course in enumerate(self.course_codes):
+            for j, semester in enumerate(self.semester_names):
                 variables[i][j] = self.model.new_bool_var(f"{course}∈{semester}?")
 
-        return pd.DataFrame(variables, index=all_courses, columns=all_semesters)
+        return pd.DataFrame(
+            variables, index=self.course_codes, columns=self.semester_names
+        )
 
     def _init_taken_in(self):
         def func(row: pd.Series) -> cp_model.IntVar:
@@ -214,7 +147,7 @@ class _CourseVariables:
 
     def _init_taken(self):
         def func(row: pd.Series) -> cp_model.IntVar:
-            var = self.model.new_bool_var(name=f"{row.name}_taken")
+            var = self.model.new_bool_var(name=f"{row.name}_taken?")
             self.model.add_max_equality(var, row)
             return var
 
@@ -240,18 +173,7 @@ class _CourseVariables:
         taken_as_core = tmp.apply(lambda x: x[1])
         return taken_as_elective, taken_as_core
 
-    # TODO: get rid of this, leaky abstraction
-    def get_courses_variables(self, course_list: list[str]) -> pd.DataFrame:
-        return self.courses.loc[course_list]
 
-    def get_course_taken_in(self, course: str) -> cp_model.IntVar:
-        return self.taken_in.loc[course]
-
-    def get_course_taken(self, course: str) -> cp_model.BoolVarT:
-        return self.taken.loc[course]
-
-
-# thing to solve the problem
 class GraduationRequirementsSolver:
     def __init__(
         self,
@@ -259,14 +181,27 @@ class GraduationRequirementsSolver:
         config: GraduationRequirementsConfig,
         csv_path: str,
     ):
+        # TODO: parse and read csv or db, use that to create variables
+
         self.problem_instance = problem_instance
         self.config = config
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
 
-        # TODO: parse and read csv or db, use that to create variables
+        logging.basicConfig(
+            format="%(asctime)s %(levelname)s:%(message)s",
+            level=logging.DEBUG,
+            datefmt="%m/%d/%Y %H:%M:%S %z",
+        )
+        self.logger = logging.getLogger(__name__)
 
-        self._class_vars = _CourseVariables(problem_instance, self.model)
+        self._class_vars = _CourseVariables(
+            problem_instance.course_codes, problem_instance.semester_names, self.model
+        )
+
+        self.logger.debug("%s courses", len(self._class_vars.courses.index))
+        self.logger.debug("%s semesters", len(self._class_vars.courses.columns))
+
         self._build_model()
 
     def _add_constraints(self):
@@ -302,6 +237,15 @@ class GraduationRequirementsSolver:
         for option in self.problem_instance.one_of:
             one_of(option)
 
+        def apply_cross_listed():
+            for course in self.problem_instance.cross_listed.keys():
+                courses = [course, *self.problem_instance.cross_listed[course]]
+                courses = list(filter(lambda x: x in all_courses, courses))
+                courses_taken_vars = self._class_vars.taken.loc[courses].values
+                self.model.add_at_most_one(courses_taken_vars)
+
+        apply_cross_listed()
+
         def apply_pre_requisite(course: str, prerequisite_options: list[str]):
             course_taken = self._class_vars.taken[course]
 
@@ -321,12 +265,12 @@ class GraduationRequirementsSolver:
                 course_taken
             )
 
-        for course, prerequisite_options in prerequisites.items():
+        for course, prerequisite_options in self.problem_instance.prerequisites.items():
             apply_pre_requisite(course, prerequisite_options)
 
         def apply_filter_constraint(f: FilterConstraint):
-            # TODO: this is hacky i need to read the csv and include
-            #  metadata about courses in there instead of parsing codes
+            # TODO: i need to read the csv and include metadata
+            #  about courses in there instead of parsing course codes
 
             match f.type:
                 case CourseType.Elective:
@@ -370,8 +314,8 @@ class GraduationRequirementsSolver:
                     if course_level(course_code) in f.year_levels
                 ]
 
-            # 2. assert count is below thresh or
             filtered_courses = [c for _, c in courses_to_filter]
+
             # might be bad to assume that courses are all 3 credit hours
             COURSE_CREDIT_HOURS = 3
             if f.lte:
@@ -389,7 +333,6 @@ class GraduationRequirementsSolver:
     def solve(self) -> GraduationRequirementsSolution:
         self.solver.parameters.max_time_in_seconds = self.config.time_limit
         self.solver.parameters.relative_gap_limit = self.config.opt_tol
-        self.solver.parameters.log_search_progress = self.config.log_search_progress
 
         status = self.solver.solve(self.model)
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
@@ -403,10 +346,14 @@ class GraduationRequirementsSolver:
                         + f"_({"E" if self.solver.value(self._class_vars.taken_as_elective[class_name]) else "C"})"
                     )
 
+            if self.config.print_stats:
+                print_statistics(self.solver)
             return GraduationRequirementsSolution(taken_courses=courses_taken)
         else:
             print(f"No Solution {self.solver.status_name()}")
+            if self.config.print_stats:
+                print_statistics(self.solver)
             return GraduationRequirementsSolution(taken_courses=dict())
 
     def take_class(self, class_name: str):
-        self.model.add(self._class_vars.get_course_taken(class_name) == 1)
+        self.model.add(self._class_vars.taken[class_name] == 1)
