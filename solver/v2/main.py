@@ -102,7 +102,9 @@ def main():
     )
     gr_config = GraduationRequirementsConfig(print_stats=True)
     solver = GraduationRequirementsSolver(
-        problem_instance=gr_instance, config=gr_config, csv_path="none"
+        problem_instance=gr_instance,
+        config=gr_config,
+        csv_path="../../../misc/uoit_courses.csv",
     )
 
     solver.take_class("CSCI4160U")  # forces csci3090, CSCI2010, (MATH2050U or MATH1850)

@@ -11,7 +11,8 @@ def expr_to_dnf(expression: str) -> list[list[str]]:
     lexer = PrerequisitesLexer(stream)
     stream = CommonTokenStream(lexer)
     parser = PrerequisitesParser(stream)
-    return parser.expression().result
+    dnf: list[list[str]] = parser.expression().result
+    return dnf
 
 
 @dataclass

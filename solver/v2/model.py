@@ -20,6 +20,7 @@ from solver.v2.static import (
     all_courses,
 )
 from solver.v2.util import course_level, get_code, print_statistics
+from parser.csv_parser import CourseCsvParser, Course
 
 
 class CourseType(Enum):
