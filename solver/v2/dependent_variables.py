@@ -12,6 +12,12 @@ def are_all_true(
     return all_vars_true
 
 
+def false_var(model: cp_model.CpModel) -> cp_model.BoolVarT:
+    var = model.new_bool_var("false_var")
+    model.add(var == 0)
+    return var
+
+
 class AllTakenDict(dict):
     def __init__(self, model: cp_model.CpModel, taken: pd.Series):
         super().__init__()
@@ -21,7 +27,14 @@ class AllTakenDict(dict):
     def __missing__(self, key):
         assert len(key) > 1, "Expected multiple courses"
 
-        taken_vars = [self.taken[course_name] for course_name in key]
+        try:
+            taken_vars = [self.taken[course_name] for course_name in key]
+        except KeyError:
+            # one of the courses doesn't exist, so they can't all be taken
+            var = false_var(self.model)
+            self[key] = var
+            return var
+
         all_taken = are_all_true(self.model, taken_vars)
 
         self[key] = all_taken
@@ -49,6 +62,11 @@ class TakenBeforeDict(dict):
         class_1_taken_before_class_2 = self.model.new_bool_var(
             f"{class_1}_taken_before_{class_2}?"
         )
+
+        if class_1 not in self.taken.index or class_2 not in self.taken.index:
+            self.model.add(class_1_taken_before_class_2 == 0)
+            self[key] = class_1_taken_before_class_2
+            return class_1_taken_before_class_2
 
         # can only be 'taken before' if both courses are taken
         class_1_and_class_2_taken = self.all_taken[(class_1, class_2)]

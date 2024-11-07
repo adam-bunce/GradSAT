@@ -8,7 +8,10 @@ from pydantic import (
     BaseModel,
     Field,
     constr,
-    NonNegativeFloat, )
+    NonNegativeFloat,
+)
+
+import pandas as pd
 
 
 class Course(BaseModel):
@@ -49,7 +52,7 @@ class CourseCsvParser:
         self.failed_hours: dict[str, list[int]] = defaultdict(list)
         self.failed_exprs: dict[str, list[int]] = defaultdict(list)
 
-    def parse(self, show_errors: bool = False) -> list[Course]:
+    def parse(self, show_errors: bool = False) -> pd.DataFrame:
         courses = []
         with open(self.path, "r") as csv_file:
             reader = csv.reader(csv_file)
@@ -60,8 +63,12 @@ class CourseCsvParser:
                     continue
                 try:
                     courses.append(self.__parse_row(row))
+                    if "2010U" in row[2]:
+                        print(row)
+
                 except Exception as e:
                     print(f"failed to parse line {i} into course, err: {e}")
+                    raise
 
         if show_errors:
             print("Failed Hour Parses:")
@@ -72,7 +79,9 @@ class CourseCsvParser:
             for pos, val in self.failed_exprs.items():
                 print(pos, val)
 
-        return courses
+        df = pd.DataFrame([course.dict() for course in courses])
+        df.index = (df["course_prefix"] + df["course_code"]).values
+        return df
 
     def __parse_row(self, row: list[str]) -> Course:
         return Course(
@@ -102,10 +111,20 @@ class CourseCsvParser:
         if not expr:
             return []
 
-        expr = expr.replace(",", "and")
+        expr = expr.replace(",", " and ")
         try:
             dnf = expr_to_dnf(expr)
-            return [[course.replace(" ", "") for course in term] for term in dnf]
+
+            prereq_option = [
+                [course.replace(" ", "") for course in term] for term in dnf
+            ]
+            for option in prereq_option:
+                for course in option:
+                    assert (
+                        len(course) >= 8
+                    ), "Course identifier should be at least 8 characters long"
+
+            return prereq_option
         except Exception as e:
             self.failed_exprs[expr].append(self.curr_row)
         return []
@@ -143,4 +162,10 @@ class CourseCsvParser:
 
 if __name__ == "__main__":
     p = CourseCsvParser(path="../../../misc/uoit_courses.csv")
-    p.parse(show_errors=True)
+    out = p.parse(show_errors=False)
+    print(out.to_html("tmp.html"))
+    for a, b in list(zip(out.index, out["pre_requisites"])):
+        if b:
+            print(a, b)
+    print(out.shape)
+    print(out.columns)

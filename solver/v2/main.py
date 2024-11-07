@@ -8,9 +8,7 @@ from model import (
 )
 from solver.v2.static import (
     all_semesters,
-    all_courses,
-    prerequisites,
-    credit_restrictions,
+    Programs,
 )
 
 
@@ -28,18 +26,34 @@ def main():
 
     # Students are required to complete at least 12 credit hours in Computer Science courses at the 4000 level
     year_4_cs_min_12ch = FilterConstraint(
-        program=["CSCI"], year_levels=[4], gte=12, type=CourseType.All
+        programs=[Programs.computer_science],
+        year_levels=[4],
+        gte=12,
+        type=CourseType.All,
     )
 
-    science = ["BIOL", "CHEM", "CSCI", "ENVS", "FSCI", "MATH", "NCSI", "PHY", "STAT"]
+    science = [
+        Programs.biology,
+        Programs.chemistry,
+        Programs.computer_science,
+        Programs.environmental_science,
+        Programs.forensic_science,
+        Programs.neuroscience,
+        Programs.physics,
+        Programs.statistics,
+    ]
     # 27 credit hours must be in courses offered by the Faculty of Science
     min_27ch_science = FilterConstraint(
-        program=science, gte=27, type=CourseType.Elective
+        programs=science, gte=27, type=CourseType.Elective
     )
 
     # at least 12 credit hours must be in Senior Computer Science electives, with no more than 15 credit hours being in Computer Science
     year_4_cs_min_12ch_max_15ch = FilterConstraint(
-        program=["CSCI"], year_levels=[4], lte=15, gte=12, type=CourseType.Elective
+        programs=[Programs.computer_science],
+        year_levels=[4],
+        lte=15,
+        gte=12,
+        type=CourseType.Elective,
     )
 
     cs_program_map = ProgramMap(
@@ -95,19 +109,20 @@ def main():
 
     gr_instance = GraduationRequirementsInstance(
         program_map=cs_program_map,
-        courses=all_courses,
         semesters=all_semesters,
-        prerequisites=prerequisites,
-        cross_listed=credit_restrictions,
+        csv_path="../../misc/uoit_courses.csv",
     )
     gr_config = GraduationRequirementsConfig(print_stats=True)
     solver = GraduationRequirementsSolver(
         problem_instance=gr_instance,
         config=gr_config,
-        csv_path="../../../misc/uoit_courses.csv",
     )
 
-    solver.take_class("CSCI4160U")  # forces csci3090, CSCI2010, (MATH2050U or MATH1850)
+    solver.take_class(
+        "CSCI4160U"
+    )  # forces csci3090, CSCI2010(+ CSCI1060U), (MATH2050U or MATH1850),
+    print("program map valid:", solver.validate_program_map())
+
     taken_classes = solver.solve()
     print(taken_classes)
 

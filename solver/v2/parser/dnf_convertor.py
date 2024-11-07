@@ -1,9 +1,10 @@
 import unittest
+
 from dataclasses import dataclass
 
 from antlr4 import *
-from generated.PrerequisitesParser import PrerequisitesParser
-from generated.PrerequisitesLexer import PrerequisitesLexer
+from solver.v2.parser.generated.PrerequisitesParser import PrerequisitesParser
+from solver.v2.parser.generated.PrerequisitesLexer import PrerequisitesLexer
 
 
 def expr_to_dnf(expression: str) -> list[list[str]]:
