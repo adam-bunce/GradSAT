@@ -2,7 +2,13 @@ import logging
 from collections import defaultdict
 from enum import Enum
 from typing import Optional
-from dependent_variables import TakenBeforeDict, AllTakenDict, are_all_true
+from dependent_variables import (
+    TakenBeforeDict,
+    AllTakenDict,
+    are_all_true,
+    TakenBeforeOrConcurrentlyDict,
+    TakenAfterDict,
+)
 
 import numpy as np
 from pydantic import (
@@ -116,6 +122,13 @@ class _CourseVariables:
 
         self.all_taken = AllTakenDict(self.model, self.taken)
         self.taken_before = TakenBeforeDict(
+            self.model, self.taken_in, self.taken, self.all_taken
+        )
+        self.taken_concurrently = TakenBeforeOrConcurrentlyDict(
+            self.model, self.taken_in, self.taken, self.all_taken
+        )
+
+        self.taken_after = TakenAfterDict(
             self.model, self.taken_in, self.taken, self.all_taken
         )
 
@@ -282,6 +295,77 @@ class GraduationRequirementsSolver:
             if prerequisite_options:
                 apply_pre_requisite(course_code, prerequisite_options)
 
+        def apply_co_requisite(course_code: str, co_requisite_options: list[list[str]]):
+            course_taken = self._class_vars.taken[course_code]
+
+            met_co_requisites = [
+                are_all_true(
+                    self.model,
+                    [
+                        self._class_vars.taken_concurrently[(coreq, course)]
+                        for coreq in coreq_option
+                    ],
+                )
+                for coreq_option in co_requisite_options
+            ]
+
+            # one of the co-req combos must be met if we're going to take the course
+            self.model.add_at_least_one(met_co_requisites).only_enforce_if(course_taken)
+
+        for course_code, co_requisite_option in zip(
+            self.problem_instance.courses.index,
+            self.problem_instance.courses["co_requisites"].values,
+        ):
+            if co_requisite_option:
+                apply_co_requisite(course_code, co_requisite_option)
+
+        def apply_post_requisite(
+            course_code: str, post_requisite_options: list[list[str]]
+        ):
+            course_taken = self._class_vars.taken[course_code]
+
+            met_post_requisites = [
+                are_all_true(
+                    self.model,
+                    [
+                        self._class_vars.taken_after[(post_req, course_code)]
+                        for post_req in post_req_option
+                    ],
+                )
+                for post_req_option in post_requisite_options
+            ]
+
+            # one of the post-req combos must be met if we're going to take the course
+            self.model.add_at_least_one(met_post_requisites).only_enforce_if(
+                course_taken
+            )
+
+        # TODO: need to manually add column to csv
+        for course_code, post_requisites in [
+            ("CSCI4410U", [["CSCI4420U"]]),
+            # self.problem_instance.courses.index,
+            # self.problem_instance.courses["co_requisites"].values,
+        ]:
+            if post_requisites:
+                print("applying post requisite", course_code, post_requisites)
+                apply_post_requisite(course_code, post_requisites)
+
+        def minimum_year_constraint(course_code: str, year: int):
+            year_to_sem: dict[int, list[int]] = {
+                1: [1, 2],
+                2: [3, 4],
+                3: [5, 6],
+                4: [7, 8],
+            }
+
+            min_semester = year_to_sem[year][0]
+            course_taken_in = self._class_vars.taken_in.loc[course_code]
+            self.model.add(course_taken_in >= min_semester)
+
+        # TODO: add column to csv for this
+        # need to be third year to take 4040
+        minimum_year_constraint("CSCI4040U", 3)
+
         def apply_filter_constraint(f: FilterConstraint):
             match f.type:
                 case CourseType.Elective:
@@ -353,6 +437,9 @@ class GraduationRequirementsSolver:
 
         for filter_constraint in self.problem_instance.filter_constraints:
             apply_filter_constraint(filter_constraint)
+
+        def apply_minimum_year_standing():
+            pass
 
     def _build_model(self):
         self._add_constraints()

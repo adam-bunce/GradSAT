@@ -63,8 +63,6 @@ class CourseCsvParser:
                     continue
                 try:
                     courses.append(self.__parse_row(row))
-                    if "2010U" in row[2]:
-                        print(row)
 
                 except Exception as e:
                     print(f"failed to parse line {i} into course, err: {e}")
@@ -112,6 +110,7 @@ class CourseCsvParser:
             return []
 
         expr = expr.replace(",", " and ")
+        expr = expr.replace(";", " and ")
         try:
             dnf = expr_to_dnf(expr)
 
@@ -163,9 +162,11 @@ class CourseCsvParser:
 if __name__ == "__main__":
     p = CourseCsvParser(path="../../../misc/uoit_courses.csv")
     out = p.parse(show_errors=False)
-    print(out.to_html("tmp.html"))
-    for a, b in list(zip(out.index, out["pre_requisites"])):
-        if b:
-            print(a, b)
-    print(out.shape)
-    print(out.columns)
+    c = "KINE4495U"
+    # print(out.loc[c]["pre_requisites"])
+
+    print(
+        expr_to_dnf(
+            "(((HLSC 3020U or KINE 2020U ) and HLSC 3472U and (HLSC 3481U or KINE 2130U ) and (HLSC 4482U or KINE 4482U ) and permission of the course instructor) or (HLSC 4494U or KINE 4494U ) and permission of the course instructor))"
+        )
+    )

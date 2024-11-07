@@ -122,6 +122,7 @@ def main():
         "CSCI4160U"
     )  # forces csci3090, CSCI2010(+ CSCI1060U), (MATH2050U or MATH1850),
     print("program map valid:", solver.validate_program_map())
+    solver.take_class("CSCI4410U")  # thesis forces CSCI4420U after it
 
     taken_classes = solver.solve()
     print(taken_classes)

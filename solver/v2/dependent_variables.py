@@ -81,3 +81,90 @@ class TakenBeforeDict(dict):
 
         self[key] = class_1_taken_before_class_2
         return class_1_taken_before_class_2
+
+
+class TakenBeforeOrConcurrentlyDict(dict):
+    def __init__(
+        self,
+        model: cp_model.CpModel,
+        taken_in: pd.Series,
+        taken: pd.Series,
+        all_taken: AllTakenDict,
+    ):
+        super().__init__()
+        self.model = model
+        self.taken_in = taken_in
+        self.taken = taken
+        self.all_taken = all_taken
+
+    def __missing__(self, key):
+        assert len(key) == 2, "Key must contain exactly two values."
+        class_1, class_2 = key
+
+        class_1_taken_before_class_2 = self.model.new_bool_var(
+            f"{class_1}_taken_before_or_concurrently_with_{class_2}?"
+        )
+
+        if class_1 not in self.taken.index or class_2 not in self.taken.index:
+            self.model.add(class_1_taken_before_class_2 == 0)
+            self[key] = class_1_taken_before_class_2
+            return class_1_taken_before_class_2
+
+        # can only be 'taken before' if both courses are taken
+        class_1_and_class_2_taken = self.all_taken[(class_1, class_2)]
+        self.model.add(class_1_and_class_2_taken == 1).only_enforce_if(
+            class_1_taken_before_class_2
+        )
+
+        # class_1 must be taken_in year lower than class_2 or in the same year, if we take class_2
+        self.model.add(
+            self.taken_in[class_1] <= self.taken_in[class_2]
+        ).only_enforce_if(self.taken[class_2])
+
+        self[key] = class_1_taken_before_class_2
+        return class_1_taken_before_class_2
+
+
+class TakenAfterDict(dict):
+    def __init__(
+        self,
+        model: cp_model.CpModel,
+        taken_in: pd.Series,
+        taken: pd.Series,
+        all_taken: AllTakenDict,
+    ):
+        super().__init__()
+        self.model = model
+        self.taken_in = taken_in
+        self.taken = taken
+        self.all_taken = all_taken
+
+    def __missing__(self, key):
+        assert len(key) == 2, "Key must contain exactly two values."
+        class_1, class_2 = key
+        print(class_1, class_2)
+
+        class_1_taken_before_class_2 = self.model.new_bool_var(
+            f"{class_1}_taken_after_{class_2}?"
+        )
+
+        print(class_1_taken_before_class_2)
+
+        if class_1 not in self.taken.index or class_2 not in self.taken.index:
+            self.model.add(class_1_taken_before_class_2 == 0)
+            self[key] = class_1_taken_before_class_2
+            return class_1_taken_before_class_2
+
+        # can only be 'taken before' if both courses are taken
+        class_1_and_class_2_taken = self.all_taken[(class_1, class_2)]
+        self.model.add(class_1_and_class_2_taken == 1).only_enforce_if(
+            class_1_taken_before_class_2
+        )
+
+        # class_1 must be taken_in year greater than class_2, if we take class_2
+        self.model.add(self.taken_in[class_1] > self.taken_in[class_2]).only_enforce_if(
+            self.taken[class_2]
+        )
+
+        self[key] = class_1_taken_before_class_2
+        return class_1_taken_before_class_2
