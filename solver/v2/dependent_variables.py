@@ -24,7 +24,7 @@ class AllTakenDict(dict):
         self.model = model
         self.taken = taken
 
-    def __missing__(self, key):
+    def __missing__(self, key: str):
         assert len(key) > 1, "Expected multiple courses"
 
         try:
@@ -64,6 +64,7 @@ class TakenBeforeDict(dict):
         )
 
         if class_1 not in self.taken.index or class_2 not in self.taken.index:
+            # gonna get standing in here
             self.model.add(class_1_taken_before_class_2 == 0)
             self[key] = class_1_taken_before_class_2
             return class_1_taken_before_class_2

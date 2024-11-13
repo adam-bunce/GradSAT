@@ -82,6 +82,7 @@ class CourseCsvParser:
         return df
 
     def __parse_row(self, row: list[str]) -> Course:
+        row: list[str] = list(map(str.lower, row))
         return Course(
             year_level=self.__course_level(row[2]),
             course_prefix=row[1],
@@ -109,8 +110,10 @@ class CourseCsvParser:
         if not expr:
             return []
 
+        original_expr = expr
         expr = expr.replace(",", " and ")
         expr = expr.replace(";", " and ")
+        expr = expr.replace(".", " and ")
         try:
             dnf = expr_to_dnf(expr)
 
@@ -125,15 +128,18 @@ class CourseCsvParser:
 
             return prereq_option
         except Exception as e:
-            self.failed_exprs[expr].append(self.curr_row)
-        return []
+            print(f"failed to parse '{original_expr}'")
+            self.failed_exprs[expr.lower()].append(self.curr_row)
+
+        # couldn't parse it so it's a special constraint that needs to be set manually
+        return [[original_expr]]
 
     def __parse_hrs(self, hours: str) -> float:
         try:
             return float(hours)
         except ValueError:
             if hours not in [None, "", " "]:
-                self.failed_hours[hours].append(self.curr_row)
+                self.failed_hours[hours.lower()].append(self.curr_row)
         return 0.0
 
     @staticmethod

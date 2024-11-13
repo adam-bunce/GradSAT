@@ -58,17 +58,17 @@ class ProgramMap(BaseModel):
 
 
 class GraduationRequirementsInstance:
-    def __init__(self, program_map: ProgramMap, csv_path: str, semesters: list[str]):
+    def __init__(self, program_map: ProgramMap, pickle_path: str, semesters: list[str]):
         # specific case
         self.required_courses = program_map.required_courses
         self.one_of = program_map.one_of
         self.filter_constraints = program_map.filter_constraints
 
-        # world
-        self.csv_parser = CourseCsvParser(path=csv_path)
-
         # TODO; fix rows that are badly formatted
-        self.courses = self.csv_parser.parse(show_errors=False)
+        # world
+        self.courses: pd.DataFrame = pd.read_pickle(filepath_or_buffer=pickle_path)
+        self.courses[["pre_requisites"]].to_html("courses.html")
+
         self.semester_names: list[str] = semesters
 
 
@@ -131,6 +131,7 @@ class _CourseVariables:
         self.taken_after = TakenAfterDict(
             self.model, self.taken_in, self.taken, self.all_taken
         )
+        self.unknown_prereqs = dict()
 
     def _init_unknown_variables(self) -> pd.DataFrame:
         variables = np.empty(
@@ -269,7 +270,18 @@ class GraduationRequirementsSolver:
             if restrictions:
                 apply_credit_restrictions(course, restrictions)
 
+        unhandled_pre_reqs: dict[str, str] = dict()
+
         def apply_pre_requisite(course: str, prerequisite_options: list[list[str]]):
+            for opts in prerequisite_options:
+                for opt in opts:
+                    # not a course code, something else
+                    if len(opt) > 9:
+                        print(course, prerequisite_options)
+                        # should be one thing if it failed to parse
+                        unhandled_pre_reqs[course] = prerequisite_options[0][0]
+                        return
+
             course_taken = self._class_vars.taken[course]
 
             prereqs_taken_before_course = [
@@ -294,6 +306,20 @@ class GraduationRequirementsSolver:
         ):
             if prerequisite_options:
                 apply_pre_requisite(course_code, prerequisite_options)
+
+        print("====================\n", len(unhandled_pre_reqs), unhandled_pre_reqs)
+
+        def apply_unknown_prerequisites(course: str, unknown_pre_req: str):
+            course_taken = self._class_vars.taken[course_code]
+            prereq_met = self.model.new_bool_var(f"met_{unknown_pre_req}")
+            # if we take this course, whatever this is must be met
+            self.model.add(prereq_met == 1).only_enforce_if(course_taken)
+            self._class_vars.unknown_prereqs[course] = prereq_met
+
+        for course, unknown_prereq in unhandled_pre_reqs.items():
+            apply_unknown_prerequisites(course, unknown_prereq)
+
+        self.model.add(self._class_vars.unknown_prereqs["biol4080u"] == 0)
 
         def apply_co_requisite(course_code: str, co_requisite_options: list[list[str]]):
             course_taken = self._class_vars.taken[course_code]
@@ -342,7 +368,7 @@ class GraduationRequirementsSolver:
 
         # TODO: need to manually add column to csv
         for course_code, post_requisites in [
-            ("CSCI4410U", [["CSCI4420U"]]),
+            ("csci4410u", [["csci4420u"]]),
             # self.problem_instance.courses.index,
             # self.problem_instance.courses["co_requisites"].values,
         ]:
@@ -364,7 +390,7 @@ class GraduationRequirementsSolver:
 
         # TODO: add column to csv for this
         # need to be third year to take 4040
-        minimum_year_constraint("CSCI4040U", 3)
+        minimum_year_constraint("csci4040u", 3)
 
         def apply_filter_constraint(f: FilterConstraint):
             match f.type:
@@ -444,6 +470,8 @@ class GraduationRequirementsSolver:
     def _build_model(self):
         self._add_constraints()
         self.model.minimize(sum(self._class_vars.courses.values.flatten()))
+        # minimize assumptions made
+        self.model.minimize(sum(self._class_vars.unknown_prereqs.values()))
 
     def solve(self) -> GraduationRequirementsSolution:
         self.solver.parameters.max_time_in_seconds = self.config.time_limit
@@ -451,6 +479,7 @@ class GraduationRequirementsSolver:
 
         status = self.solver.solve(self.model)
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
+            courses_taken_just_codes: list[str] = []
             courses_taken = defaultdict(list)
             for i, v in enumerate(self._class_vars.taken_in.values):
                 class_name = self._class_vars.taken_in.index.tolist()[i]
@@ -461,8 +490,16 @@ class GraduationRequirementsSolver:
                         + f"_({"E" if self.solver.value(self._class_vars.taken_as_elective[class_name]) else "C"})"
                     )
 
+                    courses_taken_just_codes.append(class_name)
+
             if self.config.print_stats:
                 print_statistics(self.solver)
+
+            print("Assumptions:")
+            for course, prereq in self._class_vars.unknown_prereqs.items():
+                if course in courses_taken_just_codes:
+                    if self.solver.value(prereq) == 1:
+                        print(course, "->", prereq)
 
             return GraduationRequirementsSolution(taken_courses=courses_taken)
         else:

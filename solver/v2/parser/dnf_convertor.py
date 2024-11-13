@@ -13,6 +13,8 @@ def expr_to_dnf(expression: str) -> list[list[str]]:
     stream = CommonTokenStream(lexer)
     parser = PrerequisitesParser(stream)
     dnf: list[list[str]] = parser.expression().result
+    if parser.getNumberOfSyntaxErrors() > 0:
+        raise Exception(f"Syntax errors parsing {expression}")
     return dnf
 
 

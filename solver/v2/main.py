@@ -1,3 +1,5 @@
+import json
+
 from model import (
     GraduationRequirementsInstance,
     ProgramMap,
@@ -11,11 +13,36 @@ from solver.v2.static import (
     Programs,
 )
 
+from parser.csv_parser import CourseCsvParser
+
 
 # https://calendar.ontariotechu.ca/preview_program.php?catoid=62&poid=13141&returnto=2811
 
 
+def parse_and_pickle_csv(csv_path: str):
+    """parse_and_pickle_csv("../../misc/uoit_courses.csv")"""
+    csv_parser = CourseCsvParser(path=csv_path)
+    df = csv_parser.parse()
+    path = csv_path.replace(".csv", ".pickle")
+    # fix most frequent parse failures
+    jason = dict(
+        sorted(
+            csv_parser.failed_exprs.items(),
+            key=lambda item: len(item[1]),
+            reverse=True,
+        )
+    )
+
+    with open("out.json", "w") as fp:
+        json.dump(jason, fp)
+
+    print(f"saving df to {path}")
+    df.to_pickle(path)
+    print(df.iloc[0])
+
+
 def main():
+    parse_and_pickle_csv("../../misc/uoit_courses.csv")
     # 45 credit hours in electives
     min_elective_ch = FilterConstraint(gte=45, type=CourseType.Elective)
 
@@ -58,44 +85,44 @@ def main():
 
     cs_program_map = ProgramMap(
         required_courses=[
-            "CSCI1030U",
-            "CSCI1060U",
-            "CSCI1061U",
-            "CSCI2050U",
-            "MATH1020U",
-            "PHY1020U",
-            "CSCI2000U",
-            "CSCI2010U",
-            "CSCI2020U",
-            "CSCI2040U",
-            "CSCI2072U",
-            "CSCI2110U",
-            "MATH2050U",
-            "STAT2010U",
-            "CSCI3070U",
-            "CSCI4040U",
+            "csci1030u",
+            "csci1060u",
+            "csci1061u",
+            "csci2050u",
+            "math1020u",
+            "phy1020u",
+            "csci2000u",
+            "csci2010u",
+            "csci2020u",
+            "csci2040u",
+            "csci2072u",
+            "csci2110u",
+            "math2050u",
+            "stat2010u",
+            "csci3070u",
+            "csci4040u",
         ],
         one_of=[
-            ["PHY1010U", "PHY1030U"],
-            ["MATH1010U", "MATH1000U"],
-            ["CSCI3010U", "CSCI3030U", "CSCI4030U", "CSCI4050U", "CSCI4610U"],
-            ["CSCI3090U", "CSCI4110U", "CSCI4210U", "CSCI4220U"],
-            ["CSCI3230U", "CSCI4100U", "CSCI4160U", "CSCI4620U"],
-            ["CSCI3055U", "CSCI3060U", "CSCI4020U", "CSCI4060U"],
-            ["CSCI3020U", "CSCI3150U", "CSCI3310U", "CSCI4310U"],
+            ["phy1010u", "phy1030u"],
+            ["math1010u", "math1000u"],
+            ["csci3010u", "csci3030u", "csci4030u", "csci4050u", "csci4610u"],
+            ["csci3090u", "csci4110u", "csci4210u", "csci4220u"],
+            ["csci3230u", "csci4100u", "csci4160u", "csci4620u"],
+            ["csci3055u", "csci3060u", "csci4020u", "csci4060u"],
+            ["csci3020u", "csci3150u", "csci3310u", "csci4310u"],
             [
-                "BUSI1600U",
-                "BUSI1700U",
-                "BUSI2000U",
-                "BUSI2200U",
-                "BUSI2311U",
+                "busi1600u",
+                "busi1700u",
+                "busi2000u",
+                "busi2200u",
+                "busi2311u",
             ],
             [
-                "COMM1050U",
-                "COMM1100U",
-                "COMM1320U",
-                "COMM2311U",
-                "COMM2620U",
+                "comm1050u",
+                "comm1100u",
+                "comm1320u",
+                "comm2311u",
+                "comm2620u",
             ],
         ],
         filter_constraints=[
@@ -110,7 +137,7 @@ def main():
     gr_instance = GraduationRequirementsInstance(
         program_map=cs_program_map,
         semesters=all_semesters,
-        csv_path="../../misc/uoit_courses.csv",
+        pickle_path="../../misc/uoit_courses.pickle",
     )
     gr_config = GraduationRequirementsConfig(print_stats=True)
     solver = GraduationRequirementsSolver(
@@ -119,10 +146,10 @@ def main():
     )
 
     solver.take_class(
-        "CSCI4160U"
+        "csci4160u"
     )  # forces csci3090, CSCI2010(+ CSCI1060U), (MATH2050U or MATH1850),
-    print("program map valid:", solver.validate_program_map())
-    solver.take_class("CSCI4410U")  # thesis forces CSCI4420U after it
+    print("program map valid?:", solver.validate_program_map())
+    solver.take_class("csci4410u")  # thesis forces CSCI4420U after it
 
     taken_classes = solver.solve()
     print(taken_classes)
