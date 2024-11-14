@@ -42,7 +42,7 @@ def parse_and_pickle_csv(csv_path: str):
 
 
 def main():
-    parse_and_pickle_csv("../../misc/uoit_courses.csv")
+    # parse_and_pickle_csv("../../misc/uoit_courses.csv")
     # 45 credit hours in electives
     min_elective_ch = FilterConstraint(gte=45, type=CourseType.Elective)
 
@@ -134,6 +134,22 @@ def main():
         ],
     )
 
+    # take as many math as possible
+    cs_program_map.filter_constraints.append(
+        FilterConstraint(
+            maximize=True, programs=[Programs.mathematics], type=CourseType.All
+        )
+    )
+
+    # i dont like bio courses
+    cs_program_map.filter_constraints.append(
+        FilterConstraint(
+            minimize=True,
+            programs=[Programs.biology, Programs.chemistry, Programs.business],
+            type=CourseType.All,
+        )
+    )
+
     gr_instance = GraduationRequirementsInstance(
         program_map=cs_program_map,
         semesters=all_semesters,
@@ -148,8 +164,10 @@ def main():
     solver.take_class(
         "csci4160u"
     )  # forces csci3090, CSCI2010(+ CSCI1060U), (MATH2050U or MATH1850),
+
     print("program map valid?:", solver.validate_program_map())
     solver.take_class("csci4410u")  # thesis forces CSCI4420U after it
+    solver.take_in("busi2000u", 2)
 
     taken_classes = solver.solve()
     print(taken_classes)

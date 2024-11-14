@@ -33,6 +33,7 @@ class CourseType(Enum):
     Elective = "Elective"
     Core = "Core"
     All = "All"
+    Year = "Year"
 
 
 class FilterConstraint(BaseModel):
@@ -46,6 +47,11 @@ class FilterConstraint(BaseModel):
     gte: Optional[int] = Field(
         description="minimum credit hours for filters", default=None
     )
+
+    minimize: Optional[bool] = False
+    maximize: Optional[bool] = False
+    course_names: Optional[list[str]] = []
+
     programs: Optional[list[Programs]] = None
     year_levels: Optional[list[PositiveInt]] = None
     type: Optional[CourseType] = CourseType.Elective
@@ -277,7 +283,7 @@ class GraduationRequirementsSolver:
                 for opt in opts:
                     # not a course code, something else
                     if len(opt) > 9:
-                        print(course, prerequisite_options)
+                        # print(course, prerequisite_options)
                         # should be one thing if it failed to parse
                         unhandled_pre_reqs[course] = prerequisite_options[0][0]
                         return
@@ -307,7 +313,7 @@ class GraduationRequirementsSolver:
             if prerequisite_options:
                 apply_pre_requisite(course_code, prerequisite_options)
 
-        print("====================\n", len(unhandled_pre_reqs), unhandled_pre_reqs)
+        # print("====================\n", len(unhandled_pre_reqs), unhandled_pre_reqs)
 
         def apply_unknown_prerequisites(course: str, unknown_pre_req: str):
             course_taken = self._class_vars.taken[course_code]
@@ -437,6 +443,22 @@ class GraduationRequirementsSolver:
                     in f.year_levels
                 ]
 
+            if f.course_names:
+                courses_to_filter = [
+                    (course_code, course_taken_var)
+                    for course_code, course_taken_var in courses_to_filter
+                    if course_code in f.course_names
+                ]
+
+            if f.minimize:
+                self.model.minimize(
+                    sum([course_taken for _, course_taken in courses_to_filter])
+                )
+            if f.maximize:
+                self.model.maximize(
+                    sum([course_taken for _, course_taken in courses_to_filter])
+                )
+
             # Dependant variable representing the # of credit hours we've taken in this subst of courses
             filter_set_credit_hours = self.model.new_int_var(
                 lb=0, ub=10_000, name="filter_set_credit_hours"
@@ -469,9 +491,11 @@ class GraduationRequirementsSolver:
 
     def _build_model(self):
         self._add_constraints()
-        self.model.minimize(sum(self._class_vars.courses.values.flatten()))
-        # minimize assumptions made
-        self.model.minimize(sum(self._class_vars.unknown_prereqs.values()))
+        # NOTE: when doing user constraints these need to be turned off
+        # cant maximize math courses if we minimize courses at the same time
+        # self.model.minimize(sum(self._class_vars.courses.values.flatten()))
+        # minimize assumptions made?
+        # self.model.minimize(sum(self._class_vars.unknown_prereqs.values()))
 
     def solve(self) -> GraduationRequirementsSolution:
         self.solver.parameters.max_time_in_seconds = self.config.time_limit
@@ -510,3 +534,10 @@ class GraduationRequirementsSolver:
 
     def take_class(self, class_name: str):
         self.model.add(self._class_vars.taken[class_name] == 1)
+
+    def dont_take_class(self, class_name: str):
+        self.model.add(self._class_vars.taken[class_name] == 0)
+
+    def take_in(self, class_name: str, semester: int):
+        assert 1 < semester < 9, "only 8 semesters (1->9)"
+        self.model.add(self._class_vars.taken_in.loc[class_name] == semester)
