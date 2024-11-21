@@ -1,6 +1,8 @@
 from ortools.sat.python import cp_model
 import pandas as pd
 
+from solver.v2.static import int_to_semester
+
 
 def are_all_true(
     model: cp_model.CpModel, variables: list[cp_model.BoolVarT]
@@ -169,3 +171,128 @@ class TakenAfterDict(dict):
 
         self[key] = class_1_taken_before_class_2
         return class_1_taken_before_class_2
+
+
+class StandingPrerequisiteDict(dict):
+    def __init__(self, model: cp_model.CpModel, taken: pd.Series, taken_in: pd.Series):
+        super().__init__()
+        self.model = model
+        self.taken = taken
+        self.taken_in = taken_in
+
+    def __missing__(self, key):
+        standing_prereq, course = key
+
+        min_semester = 0
+        if standing_prereq == "first_year_standing":
+            min_semester = 1
+        elif standing_prereq == "second_year_standing":
+            min_semester = 3
+        elif standing_prereq == "third_year_standing":
+            min_semester = 5
+        elif standing_prereq == "fourth_year_standing":
+            min_semester = 7
+
+        course_taken_in = self.taken_in[course]
+
+        met_pre_req = self.model.new_bool_var(
+            f"{standing_prereq}_or_greater_when_taking_{course}?"
+        )
+
+        # if we had met the year threshold to take the course, then we met the prerequisite, otherwise we didn't
+        self.model.add(course_taken_in >= min_semester).only_enforce_if(met_pre_req)
+        self.model.add(course_taken_in < min_semester).only_enforce_if(~met_pre_req)
+
+        return met_pre_req
+
+
+class CreditHoursPerSemesterDict(dict):
+    def __init__(
+        self,
+        model: cp_model.CpModel,
+        courses: pd.DataFrame,
+        course_credit_hours: pd.Series,
+    ):
+        super().__init__()
+        self.model = model
+        self.courses = courses
+        self.course_credit_hours = course_credit_hours
+
+        previous_semester_str_ids = []
+        for semester_id, semester_str_id in int_to_semester.items():
+            if semester_id == 1:
+                # no credits in first sem
+                self[semester_id] = false_var(self.model)
+                previous_semester_str_ids.append(semester_str_id)
+                continue
+
+            # really high upper bound because we scale it to get rid of decimals
+            var = self.model.new_int_var(
+                lb=0, ub=1_000_000, name=f"credit_hours_at_{semester_str_id}"
+            )
+
+            self.model.add(
+                var
+                == sum(
+                    [
+                        sum(row[:-1]) * (int(row[-1] * 10))
+                        for row in self.courses.join(self.course_credit_hours)[
+                            previous_semester_str_ids + ["credit_hours"]
+                        ].itertuples(index=False)
+                    ]
+                )
+            )
+
+            previous_semester_str_ids.append(semester_str_id)
+            self[semester_id] = var
+
+    def __missing__(self, key):
+        self[key] = 0
+        return self[key]
+
+
+class CreditHourPrerequisiteDict(dict):
+    # when we took this course, did we have n credits?
+    def __init__(
+        self,
+        model: cp_model.CpModel,
+        taken_in: pd.Series,
+        credit_hours_per_semester: dict[str, any],
+    ):
+        super().__init__()
+        self.model = model
+        self.taken_in = taken_in
+        self.credit_hours_per_semester = credit_hours_per_semester
+
+    def __missing__(self, key):
+        credit_hours_prereq, course = key
+
+        met_pre_req = self.model.new_bool_var(f"{course}_meets_{credit_hours_prereq}")
+        pos = 0
+        while credit_hours_prereq[pos].isnumeric():
+            pos += 1
+        min_credit_hours = int(credit_hours_prereq[0:pos])
+
+        course_taken_in = self.taken_in[course]
+
+        accumulator = []
+        for sem_id_int, sem_id_str in int_to_semester.items():
+            var = self.model.new_bool_var(
+                f"took_{course}_in_{sem_id_int}_and_{sem_id_int-1}_has_{min_credit_hours}?"
+            )
+
+            # it's true if we had enough credits
+            self.model.add(
+                self.credit_hours_per_semester[sem_id_int - 1] >= min_credit_hours * 10
+            ).only_enforce_if(var)
+
+            # and if we took it that semester
+            self.model.add(course_taken_in == sem_id_int).only_enforce_if(var)
+
+            accumulator.append(var)
+
+        self.model.add_at_least_one(accumulator).only_enforce_if(met_pre_req)
+        self.model.add(sum(accumulator) == 0).only_enforce_if(~met_pre_req)
+
+        self[key] = met_pre_req
+        return self[key]

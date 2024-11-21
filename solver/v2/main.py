@@ -1,4 +1,5 @@
 import json
+import os
 
 from model import (
     GraduationRequirementsInstance,
@@ -7,6 +8,7 @@ from model import (
     GraduationRequirementsSolver,
     FilterConstraint,
     CourseType,
+    Filter,
 )
 from solver.v2.static import (
     all_semesters,
@@ -25,7 +27,7 @@ def parse_and_pickle_csv(csv_path: str):
     df = csv_parser.parse()
     path = csv_path.replace(".csv", ".pickle")
     # fix most frequent parse failures
-    jason = dict(
+    tmp = dict(
         sorted(
             csv_parser.failed_exprs.items(),
             key=lambda item: len(item[1]),
@@ -34,29 +36,35 @@ def parse_and_pickle_csv(csv_path: str):
     )
 
     with open("out.json", "w") as fp:
-        json.dump(jason, fp)
+        json.dump(tmp, fp)
 
     print(f"saving df to {path}")
+
+    if os.path.exists(path):
+        os.remove(path)
+
     df.to_pickle(path)
     print(df.iloc[0])
 
 
 def main():
-    # parse_and_pickle_csv("../../misc/uoit_courses.csv")
+    parse_and_pickle_csv("../../misc/uoit_courses.csv")
     # 45 credit hours in electives
-    min_elective_ch = FilterConstraint(gte=45, type=CourseType.Elective)
+    min_elective_ch = FilterConstraint(gte=45, filter=Filter(type=CourseType.Elective))
 
     # No more than 42 credit hours may be taken at the first-year level
     max_42_credit_hours_at_first_year_level = FilterConstraint(
-        lte=42, year_levels=[1], type=CourseType.All
+        lte=42, filter=Filter(year_levels=[1], type=CourseType.All)
     )
 
     # Students are required to complete at least 12 credit hours in Computer Science courses at the 4000 level
     year_4_cs_min_12ch = FilterConstraint(
-        programs=[Programs.computer_science],
-        year_levels=[4],
         gte=12,
-        type=CourseType.All,
+        filter=Filter(
+            programs=[Programs.computer_science],
+            year_levels=[4],
+            type=CourseType.All,
+        ),
     )
 
     science = [
@@ -71,16 +79,18 @@ def main():
     ]
     # 27 credit hours must be in courses offered by the Faculty of Science
     min_27ch_science = FilterConstraint(
-        programs=science, gte=27, type=CourseType.Elective
+        gte=27, filter=Filter(type=CourseType.Elective, programs=science)
     )
 
     # at least 12 credit hours must be in Senior Computer Science electives, with no more than 15 credit hours being in Computer Science
     year_4_cs_min_12ch_max_15ch = FilterConstraint(
-        programs=[Programs.computer_science],
-        year_levels=[4],
         lte=15,
         gte=12,
-        type=CourseType.Elective,
+        filter=Filter(
+            programs=[Programs.computer_science],
+            year_levels=[4],
+            type=CourseType.Elective,
+        ),
     )
 
     cs_program_map = ProgramMap(
@@ -134,22 +144,6 @@ def main():
         ],
     )
 
-    # take as many math as possible
-    cs_program_map.filter_constraints.append(
-        FilterConstraint(
-            maximize=True, programs=[Programs.mathematics], type=CourseType.All
-        )
-    )
-
-    # i dont like bio courses
-    cs_program_map.filter_constraints.append(
-        FilterConstraint(
-            minimize=True,
-            programs=[Programs.biology, Programs.chemistry, Programs.business],
-            type=CourseType.All,
-        )
-    )
-
     gr_instance = GraduationRequirementsInstance(
         program_map=cs_program_map,
         semesters=all_semesters,
@@ -167,7 +161,20 @@ def main():
 
     print("program map valid?:", solver.validate_program_map())
     solver.take_class("csci4410u")  # thesis forces CSCI4420U after it
-    solver.take_in("busi2000u", 2)
+    solver.take_class_in("busi2000u", 2)
+
+    # infeasible if year standing constraint work (need 2nd year standing)
+    # solver.take_class_in("busi2312u", 2)
+    solver.take_class_in("busi2312u", 3)
+
+    solver.set_maximization_target(
+        Filter(
+            programs=[Programs.mathematics],
+            year_levels=[3, 4],
+            type=CourseType.Elective,
+        )
+    )
+    solver.set_minimization_target(Filter(programs=[Programs.biology]))
 
     taken_classes = solver.solve()
     print(taken_classes)

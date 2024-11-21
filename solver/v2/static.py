@@ -51,7 +51,7 @@ class Programs(Enum):
     sustainable_energy_systems = "sustainable energy systems"
 
 
-years = ["y1", "Y2", "Y3", "Y4"]
+years = ["Y1", "Y2", "Y3", "Y4"]
 semesters = ["Fall", "Winter"]
 
 all_semesters = [f"{year}_{semester}" for year in years for semester in semesters]
@@ -66,4 +66,11 @@ int_to_semester = {
     7: "Y4_Fall",
     8: "Y4_Winter",
     9: "unknown",
+}
+
+year_to_sem: dict[int, list[int]] = {
+    1: [1, 2],
+    2: [3, 4],
+    3: [5, 6],
+    4: [7, 8],
 }
