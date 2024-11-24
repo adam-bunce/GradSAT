@@ -20,6 +20,23 @@ def false_var(model: cp_model.CpModel) -> cp_model.BoolVarT:
     return var
 
 
+def zero_int(model: cp_model.CpModel) -> cp_model.IntVar:
+    var = model.new_int_var(0, 0, "empty_int")
+    return var
+
+
+def empty_interval(
+    model: cp_model.CpModel, is_present: cp_model.BoolVarT
+) -> cp_model.IntervalVar:
+    return model.new_optional_interval_var(
+        start=model.new_int_var(lb=0, ub=0, name="empty_interval_start"),
+        end=model.new_int_var(lb=0, ub=0, name="empty_interval_end"),
+        size=model.new_int_var(lb=0, ub=0, name="empty_interval_size"),
+        is_present=is_present,
+        name="empty_interval",
+    )
+
+
 class AllTakenDict(dict):
     def __init__(self, model: cp_model.CpModel, taken: pd.Series):
         super().__init__()

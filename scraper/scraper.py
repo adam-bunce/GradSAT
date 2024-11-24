@@ -218,7 +218,7 @@ class Scraper:
 
     @staticmethod
     def __random_sleep():
-        duration = uniform(0.2, 2)
+        duration = uniform(0.05, 0.5)
         logging.info("sleeping for %s", duration)
         time.sleep(duration)
 
