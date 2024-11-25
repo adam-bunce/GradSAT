@@ -20,9 +20,25 @@ def false_var(model: cp_model.CpModel) -> cp_model.BoolVarT:
     return var
 
 
+def true_var(model: cp_model.CpModel) -> cp_model.BoolVarT:
+    var = model.new_bool_var("true_var")
+    model.add(var == 1)
+    return var
+
+
 def zero_int(model: cp_model.CpModel) -> cp_model.IntVar:
     var = model.new_int_var(0, 0, "empty_int")
     return var
+
+
+def defined_int_var(model: cp_model.CpModel, value: int, name: str) -> cp_model.IntVar:
+    int_var = model.new_int_var(
+        lb=value,
+        ub=value,
+        name=f"{name}_defined_int_var",
+    )
+
+    return int_var
 
 
 def empty_interval(
@@ -35,6 +51,31 @@ def empty_interval(
         is_present=is_present,
         name="empty_interval",
     )
+
+
+def create_optional_interval_variable(
+    model: cp_model.CpModel,
+    start: int,
+    end: int,
+    enforce: cp_model.BoolVarT,
+    name: str = "unnamed_interval",
+):
+    assert 0 <= start <= 2359, "start should be between 0 and 2359 (24 hour clock)"
+    assert 0 <= end <= 2359, "end should be between 0 and 2359 (24 hour clock)"
+
+    start_var = defined_int_var(model, start, f"{name}_start")
+    end_var = defined_int_var(model, end, f"{name}_end")
+    duration = end - start
+
+    interval = model.new_optional_interval_var(
+        start=start_var,
+        end=end_var,
+        size=duration,
+        is_present=enforce,
+        name=f"{name}_interval",
+    )
+
+    return [start_var, end_var, interval]
 
 
 class AllTakenDict(dict):
