@@ -1,4 +1,8 @@
+import os
 from collections import defaultdict, namedtuple
+from dataclasses import dataclass, field
+import time
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -13,6 +17,18 @@ from solver.v2.dependent_variables import (
     create_optional_interval_variable,
     true_var,
 )
+from solver.v2.util import print_statistics
+
+
+@dataclass
+class TTFilterConstraint:
+    course_codes: Optional[list[str]] = None
+    subjects: Optional[list[str]] = None
+    year_levels: Optional[list[int]] = None
+
+    lte: int = None
+    gte: int = None
+    eq: int = None
 
 
 class TTSolution:
@@ -51,6 +67,9 @@ class TTSolution:
                     buf += f"\t{course[0]:30} ({course[1]} -> {course[2]})"
                     buf += "\n"
 
+                if len(courses_on_day) == 0:
+                    buf += "\tNone\n"
+
         return buf
 
 
@@ -59,16 +78,25 @@ class TTProblemInstance:
         self,
         courses: list[MinimumClassInfo],
         forced_conflicts: list[tuple[int, int, str]],
+        filter_constraints: list[TTFilterConstraint],
     ):
 
         self.courses = self.__init_courses(courses)
         self.forced_conflicts: list[tuple[int, int, str]] = forced_conflicts
+        self.filter_constraints: list[TTFilterConstraint] = filter_constraints
 
     @staticmethod
     def __init_courses(courses: list[MinimumClassInfo]):
         index = []
         variables = []
-        columns = ["id", "class_code", "type", "meeting_times", "linked_sections"]
+        columns = [
+            "id",
+            "class_code",
+            "type",
+            "subject",
+            "meeting_times",
+            "linked_sections",
+        ]
 
         for course in courses:
             variables.append([getattr(course, col) for col in columns])
@@ -89,17 +117,34 @@ class TTProblemInstance:
 
         self.forced_conflicts.append((start, end, day))
 
+    def add_filter_constraint(
+        self, course_names: list[str], subjects: list[str], year_levels: list[int]
+    ):
+        pass
+
 
 class TTDependantVariables:
     def __init__(self, model: cp_model.CpModel, courses: pd.DataFrame):
+        # meta
         self.__courses = courses
         self.__model = model
+        self.courses_on_day = self.__init_courses_on_day()
 
+        # d-vars
         self.course_was_taken: dict[str, cp_model.BoolVarT] = (
             self._init_unknown_variables()
         )
         self.intervals: pd.DataFrame = self._init_interval_variables()
-        self.intervals.to_html("tmp.html")
+
+        self.have_courses_on_day: dict[str, cp_model.BoolVarT] = (
+            self.__init_have_courses_on_day()
+        )
+
+        self.day_starts: dict[str, cp_model.IntVar] = self.__init_day_starts()
+        self.day_ends: dict[str, cp_model.IntVar] = self.__init_day_ends()
+        self.day_to_time_on_campus: dict[str, cp_model.IntVar] = (
+            self.__init_time_on_campus()
+        )
 
     def _init_unknown_variables(self) -> dict[str, cp_model.BoolVarT]:
         course_taken = dict()
@@ -148,6 +193,109 @@ class TTDependantVariables:
                     new_rows.append([start, end, interval, meeting_time.day_of_week()])
 
         return pd.DataFrame(data=new_rows, columns=columns, index=index)
+
+    def __init_courses_on_day(self) -> dict[str, list[str]]:
+        courses_scheduled_on_day: dict[str, list[str]] = defaultdict(list)
+
+        for idx, row in self.__courses.iterrows():
+            for mt in row["meeting_times"]:
+                if mt.monday:
+                    courses_scheduled_on_day["monday"].append(str(idx))
+                if mt.tuesday:
+                    courses_scheduled_on_day["tuesday"].append(str(idx))
+                if mt.wednesday:
+                    courses_scheduled_on_day["wednesday"].append(str(idx))
+                if mt.thursday:
+                    courses_scheduled_on_day["thursday"].append(str(idx))
+                if mt.friday:
+                    courses_scheduled_on_day["friday"].append(str(idx))
+
+        return courses_scheduled_on_day
+
+    def __init_have_courses_on_day(self) -> dict[str, cp_model.BoolVarT]:
+        # if we took a course on that day we're on campus (ignore online courses right now)
+        res: dict[str, cp_model.BoolVarT] = dict()
+
+        for day_of_week, courses_running in self.courses_on_day.items():
+            class_on_day = self.__model.new_bool_var(f"class_on_{day_of_week}?")
+
+            # 1 if we have any class that day, 0 if no
+            self.__model.add_max_equality(
+                class_on_day,
+                [self.course_was_taken[course_code] for course_code in courses_running],
+            )
+
+            res[day_of_week] = class_on_day
+
+        return res
+
+    def __init_day_starts(self):
+        # day -> int of its start date
+        day_starts: dict[str, cp_model.IntVar] = dict()
+        for day, courses in self.courses_on_day.items():
+            day_start_var = self.__model.new_int_var(0, 2359, f"{day}_start")
+
+            # if a course isn't taken, say its taken at a really large number
+            start_times = []
+            for course in courses:
+                stv = self.__model.new_int_var(0, 10_000, f"{course}_stv")
+
+                self.__model.add(
+                    stv == self.__courses.loc[course]["meeting_times"][0].begin_time
+                ).only_enforce_if(self.course_was_taken[course])
+                # NOTE: if I make this 10_000 we get valid but bad solutions, not sure why
+                self.__model.add(stv == 2359).only_enforce_if(
+                    ~self.course_was_taken[course]
+                )
+
+                start_times.append(stv)
+
+            # making bad assumptions here but I need to ship
+            self.__model.add_min_equality(day_start_var, start_times)
+
+            day_starts[day] = day_start_var
+
+        return day_starts
+
+    def __init_day_ends(self):
+        day_ends: dict[str, cp_model.IntVar] = dict()
+        for day, courses in self.courses_on_day.items():
+            day_end_var = self.__model.new_int_var(0, 2359, f"{day}_end")
+
+            # making bad assumptions here but I need to ship
+            self.__model.add_max_equality(
+                day_end_var,
+                [
+                    self.__courses.loc[course]["meeting_times"][0].end_time
+                    * self.course_was_taken[course]
+                    for course in courses
+                ],
+            )
+
+            day_ends[day] = day_end_var
+
+        return day_ends
+
+    def __init_time_on_campus(self) -> dict[str, cp_model.IntVar]:
+        res = dict()
+
+        for day_of_week in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
+            start, end = self.day_starts[day_of_week], self.day_ends[day_of_week]
+            time_on_campus_var = self.__model.new_int_var(
+                0, 2359, f"{day_of_week}_time_on_campus"
+            )
+
+            self.__model.add(time_on_campus_var == end - start).only_enforce_if(
+                self.have_courses_on_day[day_of_week]
+            )
+
+            self.__model.add(time_on_campus_var == 0).only_enforce_if(
+                ~self.have_courses_on_day[day_of_week]
+            )
+
+            res[day_of_week] = time_on_campus_var
+
+        return res
 
 
 class TTSolver:
@@ -218,19 +366,22 @@ class TTSolver:
         return fc_map
 
     def add_linked_sections_constraint(self):
+        course_id_to_course = dict(
+            zip(
+                self.problem_instance.courses["id"], self.problem_instance.courses.index
+            )
+        )
+
         # if a course is taken, one of its linked sections (dnf) must be taken as well
         for course_id, row in self.problem_instance.courses.iterrows():
             if len(row["linked_sections"]) != 0:
                 course_taken = self.d_vars.course_was_taken[str(course_id)]
 
-                # print("course taken?", course_taken)
                 possible_linked_sections = []
                 for linked_section in row["linked_sections"]:
                     linked_sections_taken = [
-                        self.d_vars.course_was_taken[course_name]
-                        for course_name in self.problem_instance.courses.query(
-                            "id in @linked_section"
-                        ).index.to_list()
+                        self.d_vars.course_was_taken[course_id_to_course[course_id]]
+                        for course_id in linked_section
                     ]
 
                     possible_linked_sections.append(
@@ -242,7 +393,44 @@ class TTSolver:
                     course_taken
                 )
 
+    def collect_filtered_variables(self, f: TTFilterConstraint):
+        df = self.problem_instance.courses
+        mask = pd.Series(True, index=df.index)
+
+        # only Lectures for now, maybe add CRN filter
+        mask &= df["type"] == "Lecture"
+
+        if f.course_codes:
+            mask &= df["class_code"].isin(f.course_codes)
+        if f.year_levels:
+            # TODO: need to add this to min course info scrape
+            pass
+        if f.subjects:
+            mask &= df["subject"].isin(f.subjects)
+
+        course_nids = df[mask].index.tolist()
+
+        res = []
+        for course_nid in course_nids:
+            res.append(self.d_vars.course_was_taken[course_nid])
+
+        return res
+
+    def add_filter_constraints(self):
+        for fc in self.problem_instance.filter_constraints:
+            courses_taken = self.collect_filtered_variables(fc)
+
+            if fc.lte:
+                self.model.add(sum(courses_taken) <= fc.lte)
+
+            if fc.gte:
+                self.model.add(sum(courses_taken) <= fc.gte)
+
+            if fc.eq:
+                self.model.add(sum(courses_taken) == fc.eq)
+
     def _add_constraints(self):
+        self.add_filter_constraints()
         self.add_max_of_course_type_constraint()
         self.add_no_overlap_constraint()
         self.add_tmp_constraint()
@@ -252,11 +440,18 @@ class TTSolver:
         self._add_constraints()
 
         # take as many courses as possible (temporary testing heuristic)
-        self.model.maximize(sum(self.d_vars.course_was_taken.values()))
+        # self.model.minimize(sum(self.d_vars.course_was_taken.values()))
+        self.minimize_days_on_campus()
+        self.minimize_course_gap()
+
+    def minimize_days_on_campus(self):
+        self.model.minimize(sum(self.d_vars.have_courses_on_day.values()))
+
+    def minimize_course_gap(self):
+        # time on campus is sort of a proxy for course gap
+        self.model.minimize(sum(self.d_vars.day_to_time_on_campus.values()))
 
     def solve(self):
-        # need to build after user defined constraints area added
-
         status = self.solver.solve(self.model)
 
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
@@ -265,6 +460,29 @@ class TTSolver:
             for course_nid, course in self.d_vars.course_was_taken.items():
                 if self.solver.value(course) == 1:
                     taken.append(course_nid)
+
+            print_statistics(self.solver)
+
+            print("On Campus Days:")
+            for k, v in self.d_vars.have_courses_on_day.items():
+                if self.solver.value(v) == 1:
+                    print(k)
+
+            ttoc = 0
+            for k, v in self.d_vars.day_starts.items():
+                start_var = self.solver.value(self.d_vars.day_starts[k])
+                end_var = self.solver.value(self.d_vars.day_ends[k])
+                toc = self.solver.value(self.d_vars.day_to_time_on_campus[k])
+                ttoc += toc
+
+                print(
+                    k,
+                    start_var,
+                    end_var,
+                    toc,
+                )
+
+            print("TTOC:", ttoc)
 
             return TTSolution(
                 courses=self.problem_instance.courses,
