@@ -21,8 +21,8 @@ if __name__ == "__main__":
         ],
     )
 
-    # problem_instance.add_forced_conflict(start=1500, end=2359, day="thursday")
-    # problem_instance.add_forced_conflict(start=1300, end=2359, day="friday")
+    # problem_instance.add_forced_conflict(start=0, end=2359, day="monday")
+    # problem_instance.add_forced_conflict(start=0, end=2359, day="friday")
 
     solver = TTSolver(problem_instance=problem_instance)
 

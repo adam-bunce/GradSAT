@@ -1,8 +1,9 @@
 import os
 from collections import defaultdict, namedtuple
 from dataclasses import dataclass, field
-import time
 from typing import Optional
+
+from pydantic import BaseModel
 
 import numpy as np
 import pandas as pd
@@ -71,6 +72,32 @@ class TTSolution:
                     buf += "\tNone\n"
 
         return buf
+
+    def response(self):
+        class Course(BaseModel):
+            crn: int
+            name: str
+            meeting_type: str
+            start_time: Optional[int]
+            end_time: Optional[int]
+
+        res: dict[str, list[Course]] = defaultdict(list)
+
+        for course_nid in self.courses_taken:
+            course_info = self.courses.loc[course_nid]
+            for meeting_time in course_info["meeting_times"]:
+                res[meeting_time.day_of_week()].append(
+                    Course(
+                        crn=course_info["id"],
+                        name=course_info["class_code"],
+                        meeting_type=course_info["type"],
+                        end_time=meeting_time.end_time,
+                        start_time=meeting_time.begin_time,
+                    )
+                )
+
+        print(res)
+        return res
 
 
 class TTProblemInstance:
@@ -424,7 +451,7 @@ class TTSolver:
                 self.model.add(sum(courses_taken) <= fc.lte)
 
             if fc.gte:
-                self.model.add(sum(courses_taken) <= fc.gte)
+                self.model.add(sum(courses_taken) >= fc.gte)
 
             if fc.eq:
                 self.model.add(sum(courses_taken) == fc.eq)
@@ -440,9 +467,9 @@ class TTSolver:
         self._add_constraints()
 
         # take as many courses as possible (temporary testing heuristic)
-        # self.model.minimize(sum(self.d_vars.course_was_taken.values()))
-        self.minimize_days_on_campus()
-        self.minimize_course_gap()
+        self.model.minimize(sum(self.d_vars.course_was_taken.values()))
+        # self.minimize_days_on_campus()
+        # self.minimize_course_gap()
 
     def minimize_days_on_campus(self):
         self.model.minimize(sum(self.d_vars.have_courses_on_day.values()))
@@ -451,7 +478,7 @@ class TTSolver:
         # time on campus is sort of a proxy for course gap
         self.model.minimize(sum(self.d_vars.day_to_time_on_campus.values()))
 
-    def solve(self):
+    def solve(self) -> TTSolution:
         status = self.solver.solve(self.model)
 
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
