@@ -32,6 +32,13 @@ class TTFilterConstraint:
     eq: int = None
 
 
+@dataclass
+class ForcedConflict:
+    day: str
+    start: int
+    stop: int
+
+
 class TTSolution:
     def __init__(self, courses_taken: list[str], courses: pd.DataFrame, status: any):
         self.courses_taken = courses_taken
@@ -104,12 +111,12 @@ class TTProblemInstance:
     def __init__(
         self,
         courses: list[MinimumClassInfo],
-        forced_conflicts: list[tuple[int, int, str]],
+        forced_conflicts: list[ForcedConflict],
         filter_constraints: list[TTFilterConstraint],
     ):
 
         self.courses = self.__init_courses(courses)
-        self.forced_conflicts: list[tuple[int, int, str]] = forced_conflicts
+        self.forced_conflicts: list[ForcedConflict] = forced_conflicts
         self.filter_constraints: list[TTFilterConstraint] = filter_constraints
 
     @staticmethod
@@ -142,7 +149,8 @@ class TTProblemInstance:
             "friday",
         ], "invalid day of the week"
 
-        self.forced_conflicts.append((start, end, day))
+        print("created conflict", start, end, day)
+        self.forced_conflicts.append(ForcedConflict(start=start, stop=end, day=day))
 
     def add_filter_constraint(
         self, course_names: list[str], subjects: list[str], year_levels: list[int]
@@ -326,10 +334,17 @@ class TTDependantVariables:
 
 
 class TTSolver:
-    def __init__(self, problem_instance: TTProblemInstance):
+    def __init__(
+        self,
+        problem_instance: TTProblemInstance,
+        enumerate_all_solutions=None,
+    ):
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
         self.problem_instance = problem_instance
+        self.enumerate_all_solutions = enumerate_all_solutions
+
+        print(self.problem_instance)
 
         self.d_vars = TTDependantVariables(
             model=self.model, courses=problem_instance.courses
@@ -338,6 +353,15 @@ class TTSolver:
         self.forced_conflicts: dict[str, list[cp_model.IntervalVar]] = (
             self.__init_forced_conflicts()
         )
+
+        self.callback = Callback(
+            courses=self.problem_instance.courses, dvars=self.d_vars
+        )
+
+        if enumerate_all_solutions:
+            self.solver.parameters.enumerate_all_solutions = True
+
+        self.pre_cull(self.problem_instance.filter_constraints)
 
         self._build_model()
 
@@ -349,6 +373,7 @@ class TTSolver:
             ]["interval"].values
 
             forced_conflict_intervals = np.array(self.forced_conflicts[day])
+            # print("fci", forced_conflict_intervals)
 
             all_intervals = np.concatenate(
                 (course_intervals, forced_conflict_intervals)
@@ -357,6 +382,7 @@ class TTSolver:
             self.model.add_no_overlap(all_intervals)
 
     def add_tmp_constraint(self):
+        # need to remove though for async online and thesis courses
         # tmp constraint to ignore courses with no scheduling (sanity checks are easier)
         for course in self.problem_instance.courses.index:
             curr_course_was_taken = self.d_vars.course_was_taken[course]
@@ -379,16 +405,18 @@ class TTSolver:
 
     def __init_forced_conflicts(self) -> dict[str, list[cp_model.IntervalVar]]:
         fc_map = defaultdict(list)
-        for start, end, day in self.problem_instance.forced_conflicts:
+        for fc in self.problem_instance.forced_conflicts:
             _, _, interval_var = create_optional_interval_variable(
                 model=self.model,
-                start=start,
-                end=end,
+                start=fc.start,
+                end=fc.stop,
                 enforce=true_var(self.model),
-                name=f"forced_conflict_s{start}_e{end}_{day}",
+                name=f"forced_conflict_s{fc.start}_e{fc.stop}_{fc.day}",
             )
 
-            fc_map[day].append(interval_var)
+            fc_map[fc.day.lower()].append(interval_var)
+
+        print(fc_map)
 
         return fc_map
 
@@ -415,10 +443,18 @@ class TTSolver:
                         are_all_true(self.model, linked_sections_taken)
                     )
 
+                if course_id.startswith("CSCI4060U"):
+                    print(course_id, "->", possible_linked_sections)
+                    print(course_taken)
+                    print("this here")
+
                 # we're not going to take a lab twice, take it once
-                self.model.add(sum(possible_linked_sections) == 1).only_enforce_if(
+                self.model.add_at_least_one(possible_linked_sections).only_enforce_if(
                     course_taken
                 )
+                # self.model.add(sum(possible_linked_sections) == 1).only_enforce_if(
+                #     course_taken
+                # )
 
     def collect_filtered_variables(self, f: TTFilterConstraint):
         df = self.problem_instance.courses
@@ -436,6 +472,7 @@ class TTSolver:
             mask &= df["subject"].isin(f.subjects)
 
         course_nids = df[mask].index.tolist()
+        print(course_nids)
 
         res = []
         for course_nid in course_nids:
@@ -443,17 +480,50 @@ class TTSolver:
 
         return res
 
+    # TODO: think if i should use this or not
+    def pre_cull(self, filters: list[TTFilterConstraint]):
+        valid_subjects = set()
+
+        # TODO: year levels
+        for f in filters:
+            if f.course_codes is not None:
+                for cc in f.course_codes:
+                    buf = ""
+                    pos = 0
+                    while not cc[pos].isnumeric():
+                        buf += cc[pos]
+                        pos += 1
+
+                    valid_subjects.add(buf)
+            if f.subjects is not None:
+                for subj in f.subjects:
+                    valid_subjects.add(subj)
+
+        print("valid_subjects", valid_subjects)
+        df = self.problem_instance.courses
+        mask = pd.Series(True, index=df.index)
+        mask &= ~df["subject"].isin(list(valid_subjects))
+
+        course_nids = df[mask].index.tolist()
+        res = []
+        for course_nid in course_nids:
+            res.append(self.d_vars.course_was_taken[course_nid])
+
+        print("hold")
+        # user didn't specify these, so we shouldn't take them
+        self.model.add(sum(res) == 0)
+
     def add_filter_constraints(self):
         for fc in self.problem_instance.filter_constraints:
             courses_taken = self.collect_filtered_variables(fc)
 
-            if fc.lte:
+            if fc.lte is not None:
                 self.model.add(sum(courses_taken) <= fc.lte)
 
-            if fc.gte:
+            if fc.gte is not None:
                 self.model.add(sum(courses_taken) >= fc.gte)
 
-            if fc.eq:
+            if fc.eq is not None:
                 self.model.add(sum(courses_taken) == fc.eq)
 
     def _add_constraints(self):
@@ -466,10 +536,12 @@ class TTSolver:
     def _build_model(self):
         self._add_constraints()
 
-        # take as many courses as possible (temporary testing heuristic)
-        self.model.minimize(sum(self.d_vars.course_was_taken.values()))
+        # take as few courses as possible (avoid adding unnecessary random courses )
+        # self.model.minimize(sum(self.d_vars.course_was_taken.values()))
+
         # self.minimize_days_on_campus()
-        # self.minimize_course_gap()
+        self.minimize_course_gap()  # maybe this is a better default objective?
+        # yeah way better results than with minimizing courses taken?
 
     def minimize_days_on_campus(self):
         self.model.minimize(sum(self.d_vars.have_courses_on_day.values()))
@@ -479,7 +551,12 @@ class TTSolver:
         self.model.minimize(sum(self.d_vars.day_to_time_on_campus.values()))
 
     def solve(self) -> TTSolution:
-        status = self.solver.solve(self.model)
+        # status = self.solver.solve(self.model)
+        status = -1
+        if self.enumerate_all_solutions:
+            status = self.solver.solve(self.model, self.callback)
+        else:
+            status = self.solver.solve(self.model)
 
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
             taken: list[str] = []
@@ -518,3 +595,26 @@ class TTSolver:
             )
         else:
             return TTSolution(courses=pd.DataFrame(), courses_taken=[], status=status)
+
+
+class Callback(cp_model.CpSolverSolutionCallback):
+    def __init__(self, courses, dvars):
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self.courses = courses
+        self.dvars = dvars
+        self.solutions = 0
+
+    def on_solution_callback(self):
+        taken: list[str] = []
+        self.solutions += 1
+
+        for course_nid, course in self.dvars.course_was_taken.items():
+            if self.value(course) == 1:
+                taken.append(course_nid)
+
+        sol = TTSolution(
+            courses=self.courses, courses_taken=taken, status=cp_model.FEASIBLE
+        )
+
+        print("=" * 10, self.solutions, "=" * 10)
+        print(sol)

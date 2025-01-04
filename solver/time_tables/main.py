@@ -1,5 +1,11 @@
 from scraper.models import ListOfMinimumClassInfo
-from solver.time_tables.model import TTProblemInstance, TTSolver, TTFilterConstraint
+from solver.time_tables.model import (
+    TTProblemInstance,
+    TTSolver,
+    TTFilterConstraint,
+    TTSolution,
+)
+from ortools.sat.python import cp_model
 
 
 def read_data(path: str) -> ListOfMinimumClassInfo:
@@ -11,20 +17,22 @@ def read_data(path: str) -> ListOfMinimumClassInfo:
 if __name__ == "__main__":
     course_list = read_data("data.json")
 
+    unique_courses = set()
+    for course in course_list.lomci:
+        unique_courses.add(course.class_code)
+    # enumerate all should find 2 possible schdules with  just csci4060u but it doesnt!
     problem_instance = TTProblemInstance(
         courses=course_list.lomci,
         forced_conflicts=[],
         filter_constraints=[
-            # take 1 math course and MPP
             TTFilterConstraint(course_codes=["CSCI4060U"], eq=1),
-            TTFilterConstraint(subjects=["MATH"], eq=3),
         ],
     )
 
-    # problem_instance.add_forced_conflict(start=0, end=2359, day="monday")
+    # problem_instance.add_forced_conflict(start=0, end=2359, day="wednesday")
     # problem_instance.add_forced_conflict(start=0, end=2359, day="friday")
 
-    solver = TTSolver(problem_instance=problem_instance)
+    solver = TTSolver(problem_instance=problem_instance, enumerate_all_solutions=True)
 
     solution = solver.solve()
     print(solution)

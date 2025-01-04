@@ -52,6 +52,8 @@ class FilterConstraint(BaseModel):
     Defaults to all if not specified. filter narrows.
     """
 
+    uuid: str
+
     lte: Optional[int] = Field(
         description="maximum credit hours for filters", default=None
     )
