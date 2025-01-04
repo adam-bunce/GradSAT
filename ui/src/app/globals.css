@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: #ffffff;
+        --foreground: #171717;
+        --radius: 0.5rem;
+    }
+
+    body {
+        color: var(--foreground);
+        background: var(--background);
+
+        font-family: Geist, Arial, Helvetica, sans-serif;
+    }
+}
+
+@layer components {
+}
+
+@layer utilities {
+    .tuo {
+        text-underline-offset: .25em;
+    }
+
+    .backdrop {
+        position: relative;
+    }
+
+    .backdrop:after {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        /*TODO: use own image*/
+        background: url("https://www.trychroma.com/img/noise.jpg");
+        opacity: .12;
+        pointer-events: none;
+        z-index: -1
+    }
+
+    .basic-shadow {
+        box-shadow: 4px 4px rgba(0, 0, 0, .4);
+    }
+
+    .basic-shadow:hover {
+        /*tailwind duration makes this have a transition i think*/
+        box-shadow: 7px 7px rgba(0, 0, 0, .5);
+    }
+
+    .divider {
+        height: 1px;
+        background-image: linear-gradient(to right, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0) 0%) !important;
+        background-position: center;
+        background-size: 10px 1px;
+        background-repeat: repeat-x;
+        border: none;
+    }
+}
