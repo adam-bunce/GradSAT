@@ -1,84 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import WindowSelect from "@/components/window-select";
 import { Button } from "@/components/ui/button";
 import generateTimeTable, {
   DayOfTheWeek,
   ForcedConflict,
   FilterConstraint,
-  GenerateTimeTableResponse,
+  CourseList,
+  OptimizationTarget,
 } from "@/api/generateTimeTable";
 import STFilterConstraint from "@/components/filter-constraint";
 import WeeklySchedule from "@/components/weekly-schedule";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { useToast } from "@/hooks/use-toast";
 
 // having like text on the right size that is synopsis of the constraint and also modifieable (remove things)
 // would be nice // also ~need~ calendar summary of forced conflicts
-// TODO: plug it in and get api connected
-const temp_schedule = {
-  wednesday: [
-    {
-      crn: 72845,
-      name: "CSCI1060U",
-      meeting_type: "Lecture",
-      start_time: 810,
-      end_time: 930,
-    },
-    {
-      crn: 72677,
-      name: "MATH2050U",
-      meeting_type: "Lecture",
-      start_time: 1840,
-      end_time: 2000,
-    },
-  ],
-  friday: [
-    {
-      crn: 72845,
-      name: "CSCI1060U",
-      meeting_type: "Lecture",
-      start_time: 810,
-      end_time: 930,
-    },
-  ],
-  tuesday: [
-    {
-      crn: 72848,
-      name: "CSCI1060U",
-      meeting_type: "Laboratory",
-      start_time: 1240,
-      end_time: 1530,
-    },
-  ],
-  monday: [
-    {
-      crn: 72677,
-      name: "MATH2050U",
-      meeting_type: "Lecture",
-      start_time: 1840,
-      end_time: 2000,
-    },
-  ],
-  thursday: [
-    {
-      crn: 73012,
-      name: "MATH2050U",
-      meeting_type: "Tutorial",
-      start_time: 1410,
-      end_time: 1530,
-    },
-  ],
-};
-
 function Page() {
+  // TODO: remove test initalization
   const [filterConstraints, setFilterConstraints] = useState<
     FilterConstraint[]
-  >([]);
+  >([
+    {
+      course_codes: ["CSCI4060U"],
+      eq: 1,
+      gte: undefined,
+      lte: undefined,
+      uuid: crypto.randomUUID(),
+      year_levels: [],
+      subjects: [],
+    },
+  ]);
   const [forcedConflicts, setForcedConflicts] = useState<ForcedConflict[]>([]);
-  const [schedule, setSchedule] = useState<null | GenerateTimeTableResponse>({
-    ...temp_schedule,
-  });
+  const [schedule, setSchedule] = useState<null | CourseList>(null);
+  const { toast } = useToast();
   const [scheduleIsLoading, setScheduleIsLoading] = useState(false);
+  const [optimizationTarget, setOptimizationTarget] = useState(
+    OptimizationTarget.CoursesTaken,
+  );
 
   const genSchedule = async () => {
     setScheduleIsLoading(true);
@@ -87,8 +52,24 @@ function Page() {
       const dayToCourseList = await generateTimeTable(
         filterConstraints,
         forcedConflicts,
+        optimizationTarget,
       );
-      setSchedule(dayToCourseList);
+      if (!dayToCourseList.found_solution) {
+        console.log("unable to find solution");
+        toast({
+          title: "Error",
+          description: "Unable to find solution, try relaxing constraints.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setSchedule(dayToCourseList.courses);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Unable to generate schedule",
+        variant: "destructive",
+      });
     } finally {
       setScheduleIsLoading(false);
     }
@@ -139,15 +120,14 @@ function Page() {
       {/*>*/}
       {/*test events*/}
       {/*</Button>*/}
-
       <div className={"flex flex-col  gap-4"}>
         <div className={"border border-black space-y-2 bg-white "}>
           <h2
             className={
-              "text-lg p-3 font-semibold border-b border-b-gray-400 flex flex-row justify-between"
+              "text-lg p-3 font-semibold border-b border-b-gray-400 flex flex-row justify-between items-center"
             }
           >
-            Forced Conflicts
+            Time Constraints
             <Button
               variant="outline"
               onClick={() => {
@@ -167,7 +147,7 @@ function Page() {
             {forcedConflicts.map((conflict, idx) => (
               <div
                 className={
-                  "sm:flex sm:flex-row md:space-x-2 space-y-2 sm:space-y-0 justify-between align-bottom"
+                  "sm:flex sm:flex-row md:space-x-2 space-y-2 sm:space-y-0 justify-between align-bottom items-center"
                 }
                 key={conflict.uuid}
               >
@@ -208,6 +188,9 @@ function Page() {
                     course_codes: [],
                     subjects: [],
                     year_levels: [],
+                    lte: "",
+                    gte: "",
+                    eq: "",
                   },
                 ]);
               }}
@@ -216,49 +199,156 @@ function Page() {
             </Button>
           </h2>
           <div className={"p-3"}>
-            {filterConstraints.map((fc) => (
-              <div
-                key={fc.uuid}
-                className={
-                  "last:pb-0 last:border-0 border-b pb-2 pt-2  border-dashed border-gray-500"
-                }
-              >
-                {/* TODO: accordion & hide after new one is created*/}
-                <STFilterConstraint
-                  uuid={fc.uuid}
-                  course_codes={fc.course_codes}
-                  subjects={fc.subjects}
-                  year_levels={fc.year_levels}
-                  onChange={updateFilterConstraints}
-                />
-                <div className={"flex flex-row justify-end"}>
-                  <Button
-                    variant="destructive"
-                    onClick={() =>
-                      setFilterConstraints(
-                        filterConstraints.filter(
-                          (inclFc) => inclFc.uuid !== fc.uuid,
-                        ),
-                      )
-                    }
-                  >
-                    -
-                  </Button>
-                </div>
-              </div>
-            ))}
+            <Accordion
+              type="single"
+              collapsible
+              className={"w-full bg-white space-y-2"}
+            >
+              <>
+                {filterConstraints.map((fc, idx) => (
+                  <div className={"flex flex-row gap-4"} key={fc.uuid}>
+                    <AccordionItem value={`item-${idx}`} className={"w-full"}>
+                      <AccordionTrigger
+                        className={
+                          "text-md font-semibold px-2 border-black border hover:no-underline "
+                        }
+                      >
+                        <div>
+                          Constraint {idx + 1}
+                          <span
+                            className={
+                              "text-sm font-normal text-zinc-400 px-3 no-underline"
+                            }
+                          >
+                            <span className={"text-blue-400"}>
+                              {fc.course_codes?.map((cc) => " " + cc)}{" "}
+                            </span>
+                            <span className={"text-red-400"}>
+                              {fc.subjects?.map((cc) => " " + cc)}{" "}
+                            </span>
+                            <span className={"text-green-400"}>
+                              {fc.year_levels?.map((cc) => " " + cc)}{" "}
+                            </span>
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+
+                      <AccordionContent
+                        className={"px-2 border-black border border-t-0"}
+                      >
+                        <div
+                          key={fc.uuid}
+                          className={
+                            "last:pb-0 last:border-0 border-b pb-2 pt-2  border-dashed border-gray-500"
+                          }
+                        >
+                          {/* TODO: accordion & hide after new one is created*/}
+                          <STFilterConstraint
+                            uuid={fc.uuid}
+                            course_codes={fc.course_codes}
+                            subjects={fc.subjects}
+                            year_levels={fc.year_levels}
+                            lte={fc.lte}
+                            gte={fc.gte}
+                            eq={fc.eq}
+                            onChange={updateFilterConstraints}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+
+                    <Button
+                      variant="destructive"
+                      onClick={() =>
+                        setFilterConstraints(
+                          filterConstraints.filter(
+                            (inclFc) => inclFc.uuid !== fc.uuid,
+                          ),
+                        )
+                      }
+                    >
+                      -
+                    </Button>
+                  </div>
+                ))}
+              </>
+            </Accordion>
           </div>
         </div>
       </div>
 
-      <Button onClick={() => genSchedule()}>GENERATE</Button>
+      <div className={"border border-black space-y-2 bg-white "}>
+        <h2
+          className={
+            "text-lg p-3 font-semibold border-b border-b-gray-400 flex flex-row justify-between items-center"
+          }
+        >
+          Optimization Target
+        </h2>
+        <div className={"p-3"}>
+          <ul className={"flex flex-col sm:flex-row gap-3"}>
+            <li
+              className={
+                "flex flex-row gap-2 hover:cursor-pointer hover:underline"
+              }
+              onClick={() =>
+                setOptimizationTarget(OptimizationTarget.CoursesTaken)
+              }
+            >
+              <input
+                readOnly={true}
+                type="radio"
+                checked={optimizationTarget === OptimizationTarget.CoursesTaken}
+              />
+              <div>Minimize Courses Taken</div>
+            </li>
 
-      {/* TODO schedule component */}
+            <li
+              className={
+                "flex flex-row gap-2 hover:cursor-pointer hover:underline"
+              }
+              onClick={() =>
+                setOptimizationTarget(OptimizationTarget.DaysOnCampus)
+              }
+            >
+              <input
+                readOnly={true}
+                type="radio"
+                checked={optimizationTarget === OptimizationTarget.DaysOnCampus}
+              />
+              <div>Minimize Days On Campus</div>
+            </li>
+
+            <li
+              className={
+                "flex flex-row gap-2 hover:cursor-pointer hover:underline"
+              }
+              onClick={() =>
+                setOptimizationTarget(OptimizationTarget.TimeOnCampus)
+              }
+            >
+              <input
+                readOnly={true}
+                type="radio"
+                checked={optimizationTarget === OptimizationTarget.TimeOnCampus}
+              />
+              <div>Minimize Time On Campus</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <Button
+        onClick={() => genSchedule()}
+        className={"bg-lime-700 hover:bg-lime-600"}
+      >
+        GENERATE
+      </Button>
       <div>
         {!scheduleIsLoading && schedule !== null && (
           <WeeklySchedule courses={schedule} />
         )}
-        {/*TODO: elapsed time would be nice lowk*/}
+        {/*TODO: modal or tooltip wiht course info, diff colours if tut/lab/lecture*/}
         {scheduleIsLoading && (
           <div
             className={

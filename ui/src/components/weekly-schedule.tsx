@@ -2,12 +2,12 @@ import { Course, DayOfTheWeek } from "@/api/generateTimeTable";
 // React import gets rid of ts errors?
 import React, { useEffect, useRef } from "react";
 import { gen_time_labels } from "@/components/window-select";
+import Form from "next/form";
 
 const CONTAINER_HEIGHT = 960;
 const DAY_MINUTES = 24 * 60;
 const TIME_SCALE = CONTAINER_HEIGHT / DAY_MINUTES;
 
-// this is a col actu
 function Col({ dayCourses }: { dayCourses: Course[] }) {
   const calculatePos = (course: Course): Object => {
     if (!course) return {};
@@ -25,7 +25,7 @@ function Col({ dayCourses }: { dayCourses: Course[] }) {
       position: "absolute",
       top: courseTop,
       height: courseHeight,
-      backgroundColor: "lightblue",
+      backgroundColor: "#fb923c",
     };
   };
 
@@ -63,39 +63,43 @@ export default function WeeklySchedule({ courses }) {
   }, []);
 
   return (
-    <div>
-      <div className={"grid grid-cols-8 overflow-y-scroll"}>
-        <div className={"bg-white"}>{/* empty cell */}</div>
-        {Object.values(DayOfTheWeek).map((dotw, idx) => (
-          <div key={idx} className={"bg-white"}>
-            {dotw.toUpperCase()}
-          </div>
-        ))}
-      </div>
-
-      <div
-        className={
-          "border grid grid-cols-8 h-[600px] bg-white overflow-y-scroll"
-        }
-        ref={scheduleRef}
-      >
-        <div className={"border"}>
-          {timeLabels.map((pair, idx) => (
-            <div
-              className={"border h-[960px]"}
-              style={{ height: labelHeight + "px" }}
-              key={idx}
-            >
-              {pair[0]}
+    <div className={"overflow-scroll bg-white"}>
+      <div className={"border-green-300 w-full min-w-[650px]"}>
+        <div className={"grid grid-cols-8"}>
+          <div className={"bg-white"}>{/* empty cell */}</div>
+          {Object.values(DayOfTheWeek).map((dotw, idx) => (
+            <div key={idx} className={"bg-white"}>
+              {dotw.toUpperCase().slice(0, 3)}
             </div>
           ))}
         </div>
 
-        {Object.values(DayOfTheWeek).map((dotw, idx) => (
-          <div className={"border"} key={idx}>
-            <Col dayCourses={courses[dotw] ? courses[dotw] : []} />
+        <div
+          className={
+            "border-t border-gray-400  grid grid-cols-8 h-[600px] bg-white"
+          }
+          ref={scheduleRef}
+        >
+          <div className={"border-r border-gray-400"}>
+            {timeLabels.map((pair, idx) => (
+              <div
+                className={
+                  "border-b border-black h-[960px] flex flex-row justify-end"
+                }
+                style={{ height: labelHeight + "px" }}
+                key={idx}
+              >
+                {pair[0]}
+              </div>
+            ))}
           </div>
-        ))}
+
+          {Object.values(DayOfTheWeek).map((dotw, idx) => (
+            <div className={"border-r border-gray-400"} key={idx}>
+              <Col dayCourses={courses[dotw] ? courses[dotw] : []} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -68,7 +68,7 @@ const TextSelect = ({ onChange, selectedItems, itemOptions, boxText }) => {
   return (
     <div>
       {selectedItems.map((course, index) => (
-        <div className={""}>
+        <div className={""} key={index}>
           <span
             key={index}
             className="bg-blue-100 text-blue-800 px-2 py-1 text-sm hover:cursor-pointer hover:bg-red-100 hover:text-red-800 "

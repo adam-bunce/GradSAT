@@ -673,24 +673,25 @@ const courseOptions = [
   "XBIT4600U",
   "XBIT4610U",
   "XBIT4620U",
-  "XBIT4700U"
+  "XBIT4700U",
 ];
 
 const subjectOptions = ["BIOL", "CSCI", "MATH", "PHYS"];
 export default function STFilterConstraint({
-                                             uuid,
-                                             course_codes,
-                                             subjects,
-                                             year_levels,
-                                             eq,
-                                             gte,
-                                             lte,
-                                             onChange
-                                           }) {
+  uuid,
+  course_codes,
+  subjects,
+  year_levels,
+  eq,
+  gte,
+  lte,
+  onChange,
+}) {
   // natural language to this constraints would be nice tbh
   // 5 3rd year cs courses (gte 5, subjects=[CSCI], years=[3])
   return (
     <div className={"space-y-3"}>
+      <h2 className={"text-md font-semibold"}>Filter</h2>
       <TextSelect
         boxText={"Type course code..."}
         selectedItems={course_codes}
@@ -715,29 +716,40 @@ export default function STFilterConstraint({
           onChange(uuid, "year_levels", newYearLevels)
         }
       />
-
       <div>
-        <div>courses <span className={"font-semibold"}>
-          >= </span><input type="number" className={"border px-1 py-2 w-[50px]"} value={gte}
-                           onChange={(event) => onChange(uuid, "gte", event.target.value)} />
+        <h2 className={"text-md font-semibold"}>Constrain</h2>
+        <div>
+          courses <span className={"font-semibold"}>&gt;= </span>
+          <input
+            type="number"
+            className={"border px-1 py-2 w-[50px]"}
+            value={gte}
+            onChange={(event) => onChange(uuid, "gte", event.target.value)}
+          />
         </div>
       </div>
-
       <div>
-        <div>courses <span className={"font-semibold"}>
-          &lt;= </span><input type="number" className={"border px-1 py-2 w-[50px]"}
-
-                              onChange={(event) => onChange(uuid, "lte", event.target.value)} />
+        <div>
+          courses <span className={"font-semibold"}>&lt;= </span>
+          <input
+            type="number"
+            className={"border px-1 py-2 w-[50px]"}
+            value={lte}
+            onChange={(event) => onChange(uuid, "lte", event.target.value)}
+          />
         </div>
       </div>
-
       <div>
-        <div>courses <span className={"font-semibold"}>
-          == </span><input type="number" className={"border px-1 py-2 w-[50px]"}
-                           onChange={(event) => onChange(uuid, "eq", event.target.value)} />
+        <div>
+          courses <span className={"font-semibold"}>== </span>
+          <input
+            type="number"
+            className={"border px-1 py-2 w-[50px]"}
+            value={eq}
+            onChange={(event) => onChange(uuid, "eq", event.target.value)}
+          />
         </div>
       </div>
-
     </div>
   );
 }

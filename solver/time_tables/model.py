@@ -1,6 +1,7 @@
 import os
 from collections import defaultdict, namedtuple
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel
@@ -37,6 +38,13 @@ class ForcedConflict:
     day: str
     start: int
     stop: int
+
+
+class OptimizationTarget(Enum):
+    UNKNOWN = 0
+    CoursesTaken = 1
+    DaysOnCampus = 2
+    TimeOnCampus = 3
 
 
 class TTSolution:
@@ -88,6 +96,17 @@ class TTSolution:
             start_time: Optional[int]
             end_time: Optional[int]
 
+        class GenerateResponse(BaseModel):
+            courses: dict[str, list[Course]]
+            found_solution: bool
+
+        if self.status in [
+            cp_model.UNKNOWN,
+            cp_model.INFEASIBLE,
+            cp_model.MODEL_INVALID,
+        ]:
+            return GenerateResponse(courses=dict(), found_solution=False)
+
         res: dict[str, list[Course]] = defaultdict(list)
 
         for course_nid in self.courses_taken:
@@ -104,7 +123,7 @@ class TTSolution:
                 )
 
         print(res)
-        return res
+        return GenerateResponse(courses=res, found_solution=True)
 
 
 class TTProblemInstance:
@@ -113,11 +132,13 @@ class TTProblemInstance:
         courses: list[MinimumClassInfo],
         forced_conflicts: list[ForcedConflict],
         filter_constraints: list[TTFilterConstraint],
+        optimization_target: OptimizationTarget,
     ):
 
         self.courses = self.__init_courses(courses)
         self.forced_conflicts: list[ForcedConflict] = forced_conflicts
         self.filter_constraints: list[TTFilterConstraint] = filter_constraints
+        self.optimization_target = optimization_target
 
     @staticmethod
     def __init_courses(courses: list[MinimumClassInfo]):
@@ -525,18 +546,16 @@ class TTSolver:
     def _build_model(self):
         self._add_constraints()
 
-        # self.solver.parameters.random_seed = 599
-        # self.solver.parameters.permute_variable_randomly
-
-        # take as few courses as possible (avoid adding unnecessary random courses )
-        self.model.minimize(sum(self.d_vars.course_was_taken.values()))
-        # reason why enumerating all on other problems worked was because there was no objective, so it didn't go to optimal then stop, if i remove this i get 5billin results, all of which are bad
-        # need to do multi solves based on previous optimal solutions i think
-
-        # self.minimize_days_on_campus()
-        # self.minimize_course_gap()  # maybe this is a better default objective?
-        # self.solver.parameters.cp_model_probing_level = 0
-        # yeah way better results than with minimizing courses taken?
+        match self.problem_instance.optimization_target:
+            case OptimizationTarget.CoursesTaken:
+                self.model.minimize(sum(self.d_vars.course_was_taken.values()))
+            case OptimizationTarget.DaysOnCampus:
+                self.model.minimize(sum(self.d_vars.course_was_taken.values()))
+                self.minimize_days_on_campus()
+            case OptimizationTarget.TimeOnCampus:
+                self.minimize_course_gap()
+            case _:
+                print("unhandled optimization target")
 
     def minimize_days_on_campus(self):
         self.model.minimize(sum(self.d_vars.have_courses_on_day.values()))
