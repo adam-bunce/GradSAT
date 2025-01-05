@@ -344,8 +344,6 @@ class TTSolver:
         self.problem_instance = problem_instance
         self.enumerate_all_solutions = enumerate_all_solutions
 
-        print(self.problem_instance)
-
         self.d_vars = TTDependantVariables(
             model=self.model, courses=problem_instance.courses
         )
@@ -361,6 +359,7 @@ class TTSolver:
         if enumerate_all_solutions:
             self.solver.parameters.enumerate_all_solutions = True
 
+        # significant wall time perf improvement
         self.pre_cull(self.problem_instance.filter_constraints)
 
         self._build_model()
@@ -416,8 +415,6 @@ class TTSolver:
 
             fc_map[fc.day.lower()].append(interval_var)
 
-        print(fc_map)
-
         return fc_map
 
     def add_linked_sections_constraint(self):
@@ -443,11 +440,6 @@ class TTSolver:
                         are_all_true(self.model, linked_sections_taken)
                     )
 
-                if course_id.startswith("CSCI4060U"):
-                    print(course_id, "->", possible_linked_sections)
-                    print(course_taken)
-                    print("this here")
-
                 # we're not going to take a lab twice, take it once
                 self.model.add_at_least_one(possible_linked_sections).only_enforce_if(
                     course_taken
@@ -472,7 +464,6 @@ class TTSolver:
             mask &= df["subject"].isin(f.subjects)
 
         course_nids = df[mask].index.tolist()
-        print(course_nids)
 
         res = []
         for course_nid in course_nids:
@@ -499,7 +490,6 @@ class TTSolver:
                 for subj in f.subjects:
                     valid_subjects.add(subj)
 
-        print("valid_subjects", valid_subjects)
         df = self.problem_instance.courses
         mask = pd.Series(True, index=df.index)
         mask &= ~df["subject"].isin(list(valid_subjects))
@@ -509,7 +499,6 @@ class TTSolver:
         for course_nid in course_nids:
             res.append(self.d_vars.course_was_taken[course_nid])
 
-        print("hold")
         # user didn't specify these, so we shouldn't take them
         self.model.add(sum(res) == 0)
 
@@ -536,11 +525,17 @@ class TTSolver:
     def _build_model(self):
         self._add_constraints()
 
+        # self.solver.parameters.random_seed = 599
+        # self.solver.parameters.permute_variable_randomly
+
         # take as few courses as possible (avoid adding unnecessary random courses )
-        # self.model.minimize(sum(self.d_vars.course_was_taken.values()))
+        self.model.minimize(sum(self.d_vars.course_was_taken.values()))
+        # reason why enumerating all on other problems worked was because there was no objective, so it didn't go to optimal then stop, if i remove this i get 5billin results, all of which are bad
+        # need to do multi solves based on previous optimal solutions i think
 
         # self.minimize_days_on_campus()
-        self.minimize_course_gap()  # maybe this is a better default objective?
+        # self.minimize_course_gap()  # maybe this is a better default objective?
+        # self.solver.parameters.cp_model_probing_level = 0
         # yeah way better results than with minimizing courses taken?
 
     def minimize_days_on_campus(self):
@@ -559,6 +554,8 @@ class TTSolver:
             status = self.solver.solve(self.model)
 
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
+            if status == cp_model.OPTIMAL:
+                print("OPTIMAL")
             taken: list[str] = []
 
             for course_nid, course in self.d_vars.course_was_taken.items():
@@ -616,5 +613,5 @@ class Callback(cp_model.CpSolverSolutionCallback):
             courses=self.courses, courses_taken=taken, status=cp_model.FEASIBLE
         )
 
-        print("=" * 10, self.solutions, "=" * 10)
+        print("=" * 10, self.solutions, f"({self.objective_value})", "=" * 10)
         print(sol)

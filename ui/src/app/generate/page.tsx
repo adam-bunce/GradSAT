@@ -132,98 +132,106 @@ function Page() {
 
   return (
     <div className={"space-y-3"}>
-      <Button
-        onClick={() =>
-          getEvents(filterConstraints, forcedConflicts, (ev) => console.log(ev))
-        }
-      >
-        test events
-      </Button>
-      <div className={"border p-3 space-y-3 bg-white"}>
-        <h2>Forced Conflicts</h2>
-        {forcedConflicts.map((conflict, idx) => (
-          <div className={"flex flex-row space-x-2"} key={conflict.uuid}>
-            <WindowSelect
-              uuid={conflict.uuid}
-              startTime={conflict.start}
-              stopTime={conflict.stop}
-              dayOfTheWeek={conflict.day}
-              onChange={updateForcedConflict}
-            />
-            <Button
-              variant="destructive"
-              onClick={() => deleteForcedConflict(conflict.uuid)}
-            >
-              -
-            </Button>
-          </div>
-        ))}
+      {/*NOTE: events work fine but the model can't get multiple optimal solutions w/o me modifying it */}
+      {/*<Button*/}
+      {/*  onClick={() =>*/}
+      {/*    getEvents(filterConstraints, forcedConflicts, (ev) => console.log(ev))*/}
+      {/*  }*/}
+      {/*>*/}
+      {/*test events*/}
+      {/*</Button>*/}
 
-        <Button
-          variant="outline"
-          onClick={() => {
-            setForcedConflicts([
-              ...forcedConflicts,
-              {
-                uuid: crypto.randomUUID(),
-              },
-            ]);
-          }}
-        >
-          +
-        </Button>
-      </div>
-
-      <div className={"border p-3 bg-white"}>
-        <h2>Filter Constraints</h2>
-        <div>
-          {filterConstraints.map((fc) => (
-            <div
-              key={fc.uuid}
-              className={
-                "last:pb-0 last:border-0 border-b pb-2 pt-2  border-dashed border-gray-500"
-              }
-            >
-              {/* TODO: accordion & hide after new one is created*/}
-              <STFilterConstraint
-                uuid={fc.uuid}
-                course_codes={fc.course_codes}
-                subjects={fc.subjects}
-                year_levels={fc.year_levels}
-                onChange={updateFilterConstraints}
+      <div className={"flex flex-col md:flex-row"}>
+        <div className={"border border-black space-y-3 bg-white"}>
+          <h2
+            className={"text-lg p-3 font-semibold border-b border-b-gray-400 "}
+          >
+            Forced Conflicts
+          </h2>
+          {forcedConflicts.map((conflict, idx) => (
+            <div className={"flex flex-row space-x-2"} key={conflict.uuid}>
+              <WindowSelect
+                uuid={conflict.uuid}
+                startTime={conflict.start}
+                stopTime={conflict.stop}
+                dayOfTheWeek={conflict.day}
+                onChange={updateForcedConflict}
               />
               <Button
                 variant="destructive"
-                onClick={() =>
-                  setFilterConstraints(
-                    filterConstraints.filter(
-                      (inclFc) => inclFc.uuid !== fc.uuid,
-                    ),
-                  )
-                }
+                onClick={() => deleteForcedConflict(conflict.uuid)}
               >
                 -
               </Button>
             </div>
           ))}
+
+          <Button
+            variant="outline"
+            onClick={() => {
+              setForcedConflicts([
+                ...forcedConflicts,
+                {
+                  uuid: crypto.randomUUID(),
+                },
+              ]);
+            }}
+          >
+            +
+          </Button>
         </div>
 
-        <Button
-          variant="outline"
-          onClick={() => {
-            setFilterConstraints([
-              ...filterConstraints,
-              {
-                uuid: crypto.randomUUID(),
-                course_codes: [],
-                subjects: [],
-                year_levels: [],
-              },
-            ]);
-          }}
-        >
-          +
-        </Button>
+        <div className={"border p-3 bg-white"}>
+          <h2>Filter Constraints</h2>
+          <div>
+            {filterConstraints.map((fc) => (
+              <div
+                key={fc.uuid}
+                className={
+                  "last:pb-0 last:border-0 border-b pb-2 pt-2  border-dashed border-gray-500"
+                }
+              >
+                {/* TODO: accordion & hide after new one is created*/}
+                <STFilterConstraint
+                  uuid={fc.uuid}
+                  course_codes={fc.course_codes}
+                  subjects={fc.subjects}
+                  year_levels={fc.year_levels}
+                  onChange={updateFilterConstraints}
+                />
+                <Button
+                  variant="destructive"
+                  onClick={() =>
+                    setFilterConstraints(
+                      filterConstraints.filter(
+                        (inclFc) => inclFc.uuid !== fc.uuid,
+                      ),
+                    )
+                  }
+                >
+                  -
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => {
+              setFilterConstraints([
+                ...filterConstraints,
+                {
+                  uuid: crypto.randomUUID(),
+                  course_codes: [],
+                  subjects: [],
+                  year_levels: [],
+                },
+              ]);
+            }}
+          >
+            +
+          </Button>
+        </div>
       </div>
 
       <Button onClick={() => genSchedule()}>GENERATE</Button>

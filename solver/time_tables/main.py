@@ -3,9 +3,7 @@ from solver.time_tables.model import (
     TTProblemInstance,
     TTSolver,
     TTFilterConstraint,
-    TTSolution,
 )
-from ortools.sat.python import cp_model
 
 
 def read_data(path: str) -> ListOfMinimumClassInfo:
@@ -26,6 +24,7 @@ if __name__ == "__main__":
         forced_conflicts=[],
         filter_constraints=[
             TTFilterConstraint(course_codes=["CSCI4060U"], eq=1),
+            # TTFilterConstraint(course_codes=["CSCI1060U"], eq=1),
         ],
     )
 

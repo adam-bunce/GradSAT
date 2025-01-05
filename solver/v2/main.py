@@ -174,6 +174,7 @@ def main():
             type=CourseType.Elective,
         )
     )
+
     solver.set_minimization_target(Filter(programs=[Programs.biology]))
 
     taken_classes = solver.solve()
