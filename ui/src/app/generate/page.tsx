@@ -11,7 +11,6 @@ import generateTimeTable, {
 } from "@/api/generateTimeTable";
 import STFilterConstraint from "@/components/filter-constraint";
 import WeeklySchedule from "@/components/weekly-schedule";
-import getEvents from "@/api/streamGenerateTimeTables";
 
 // having like text on the right size that is synopsis of the constraint and also modifieable (remove things)
 // would be nice // also ~need~ calendar summary of forced conflicts
@@ -141,49 +140,82 @@ function Page() {
       {/*test events*/}
       {/*</Button>*/}
 
-      <div className={"flex flex-col md:flex-row"}>
-        <div className={"border border-black space-y-3 bg-white"}>
+      <div className={"flex flex-col  gap-4"}>
+        <div className={"border border-black space-y-2 bg-white "}>
           <h2
-            className={"text-lg p-3 font-semibold border-b border-b-gray-400 "}
+            className={
+              "text-lg p-3 font-semibold border-b border-b-gray-400 flex flex-row justify-between"
+            }
           >
             Forced Conflicts
+            <Button
+              variant="outline"
+              onClick={() => {
+                setForcedConflicts([
+                  ...forcedConflicts,
+                  {
+                    uuid: crypto.randomUUID(),
+                  },
+                ]);
+              }}
+            >
+              +
+            </Button>
           </h2>
-          {forcedConflicts.map((conflict, idx) => (
-            <div className={"flex flex-row space-x-2"} key={conflict.uuid}>
-              <WindowSelect
-                uuid={conflict.uuid}
-                startTime={conflict.start}
-                stopTime={conflict.stop}
-                dayOfTheWeek={conflict.day}
-                onChange={updateForcedConflict}
-              />
-              <Button
-                variant="destructive"
-                onClick={() => deleteForcedConflict(conflict.uuid)}
-              >
-                -
-              </Button>
-            </div>
-          ))}
 
-          <Button
-            variant="outline"
-            onClick={() => {
-              setForcedConflicts([
-                ...forcedConflicts,
-                {
-                  uuid: crypto.randomUUID(),
-                },
-              ]);
-            }}
-          >
-            +
-          </Button>
+          <div className={"p-3 space-y-2"}>
+            {forcedConflicts.map((conflict, idx) => (
+              <div
+                className={
+                  "sm:flex sm:flex-row md:space-x-2 space-y-2 sm:space-y-0 justify-between align-bottom"
+                }
+                key={conflict.uuid}
+              >
+                <WindowSelect
+                  uuid={conflict.uuid}
+                  startTime={conflict.start}
+                  stopTime={conflict.stop}
+                  dayOfTheWeek={conflict.day}
+                  onChange={updateForcedConflict}
+                />
+                <div className={"flex flex-row justify-end"}>
+                  <Button
+                    variant="destructive"
+                    onClick={() => deleteForcedConflict(conflict.uuid)}
+                  >
+                    -
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className={"border p-3 bg-white"}>
-          <h2>Filter Constraints</h2>
-          <div>
+        <div className={"border border-black bg-white "}>
+          <h2
+            className={
+              "font-semibold text-lg p-3 border-b border-b-gray-400 flex flex-row justify-between items-center"
+            }
+          >
+            Filter Constraints
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFilterConstraints([
+                  ...filterConstraints,
+                  {
+                    uuid: crypto.randomUUID(),
+                    course_codes: [],
+                    subjects: [],
+                    year_levels: [],
+                  },
+                ]);
+              }}
+            >
+              +
+            </Button>
+          </h2>
+          <div className={"p-3"}>
             {filterConstraints.map((fc) => (
               <div
                 key={fc.uuid}
@@ -199,38 +231,23 @@ function Page() {
                   year_levels={fc.year_levels}
                   onChange={updateFilterConstraints}
                 />
-                <Button
-                  variant="destructive"
-                  onClick={() =>
-                    setFilterConstraints(
-                      filterConstraints.filter(
-                        (inclFc) => inclFc.uuid !== fc.uuid,
-                      ),
-                    )
-                  }
-                >
-                  -
-                </Button>
+                <div className={"flex flex-row justify-end"}>
+                  <Button
+                    variant="destructive"
+                    onClick={() =>
+                      setFilterConstraints(
+                        filterConstraints.filter(
+                          (inclFc) => inclFc.uuid !== fc.uuid,
+                        ),
+                      )
+                    }
+                  >
+                    -
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
-
-          <Button
-            variant="outline"
-            onClick={() => {
-              setFilterConstraints([
-                ...filterConstraints,
-                {
-                  uuid: crypto.randomUUID(),
-                  course_codes: [],
-                  subjects: [],
-                  year_levels: [],
-                },
-              ]);
-            }}
-          >
-            +
-          </Button>
         </div>
       </div>
 

@@ -54,7 +54,7 @@ export default function WindowSelect({
 
   return (
     <div
-      className={`flex flex-row space-x-2 ${isDisabled() ? "opacity-75" : ""}`}
+      className={`flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0 ${isDisabled() ? "opacity-75" : ""}`}
     >
       <Select
         onValueChange={(dayOfTheWeek) => {
@@ -62,7 +62,7 @@ export default function WindowSelect({
         }}
         value={dayOfTheWeek}
       >
-        <SelectTrigger className="w-[120px]">
+        <SelectTrigger className="w-full sm:w-[120px]">
           <SelectValue placeholder="Day" />
         </SelectTrigger>
         <SelectContent>
@@ -75,45 +75,48 @@ export default function WindowSelect({
           </>
         </SelectContent>
       </Select>
-      <Select
-        onValueChange={(startTimeValue) =>
-          onChange(uuid, "start", startTimeValue)
-        }
-        value={startTime}
-      >
-        <SelectTrigger className="w-[120px]">
-          <SelectValue placeholder="Start Time" />
-        </SelectTrigger>
-        <SelectContent>
-          <>
-            {times.map(([humanTime, militaryTime], _) => (
-              <SelectItem value={militaryTime} key={militaryTime}>
-                {humanTime}
-              </SelectItem>
-            ))}
-          </>
-        </SelectContent>
-      </Select>
 
-      <div className={"flex items-center"}>–</div>
+      <div className={"flex flex-row "}>
+        <Select
+          onValueChange={(startTimeValue) =>
+            onChange(uuid, "start", startTimeValue)
+          }
+          value={startTime}
+        >
+          <SelectTrigger className="sm:w-[120px]">
+            <SelectValue placeholder="Start" />
+          </SelectTrigger>
+          <SelectContent>
+            <>
+              {times.map(([humanTime, militaryTime], _) => (
+                <SelectItem value={militaryTime} key={militaryTime}>
+                  {humanTime}
+                </SelectItem>
+              ))}
+            </>
+          </SelectContent>
+        </Select>
 
-      <Select
-        onValueChange={(endTimeValue) => onChange(uuid, "stop", endTimeValue)}
-        value={stopTime}
-      >
-        <SelectTrigger className="w-[120px]">
-          <SelectValue placeholder="End Time" />
-        </SelectTrigger>
-        <SelectContent>
-          <>
-            {times.map(([humanTime, militaryTime], _) => (
-              <SelectItem value={militaryTime} key={militaryTime}>
-                {humanTime}
-              </SelectItem>
-            ))}
-          </>
-        </SelectContent>
-      </Select>
+        <div className={"flex items-center sm:w-auto px-1"}>–</div>
+
+        <Select
+          onValueChange={(endTimeValue) => onChange(uuid, "stop", endTimeValue)}
+          value={stopTime}
+        >
+          <SelectTrigger className="sm:w-[120px]">
+            <SelectValue placeholder="End" />
+          </SelectTrigger>
+          <SelectContent>
+            <>
+              {times.map(([humanTime, militaryTime], _) => (
+                <SelectItem value={militaryTime} key={militaryTime}>
+                  {humanTime}
+                </SelectItem>
+              ))}
+            </>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
