@@ -67,19 +67,19 @@ const TextSelect = ({ onChange, selectedItems, itemOptions, boxText }) => {
 
   return (
     <div>
-      {selectedItems.map((course, index) => (
-        <div className={""} key={index}>
-          <span
+      <div className={"pb-2 flex flex-wrap gap-1"}>
+        {selectedItems.map((course, index) => (
+          <div
             key={index}
-            className="bg-blue-100 text-blue-800 px-2 py-1 text-sm hover:cursor-pointer hover:bg-red-100 hover:text-red-800 "
+            className="bg-blue-100 text-blue-800 px-2 py-1 text-sm hover:cursor-pointer hover:bg-red-100 hover:text-red-800 inline"
             onClick={() =>
               onChange(selectedItems.filter((crs) => course !== crs))
             }
           >
-            X {course}
-          </span>
-        </div>
-      ))}
+            X&nbsp;{course}
+          </div>
+        ))}
+      </div>
 
       <div className="border  p-2 bg-white">
         <div className="flex flex-wrap gap-2">

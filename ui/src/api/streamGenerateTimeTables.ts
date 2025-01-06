@@ -1,13 +1,33 @@
-import { FilterConstraint, ForcedConflict } from "@/api/generateTimeTable";
+import {
+  FilterConstraint,
+  ForcedConflict,
+  GenerateTimeTableResponse,
+  OptimizationTarget,
+} from "@/api/generateTimeTable";
+import { callbackify } from "node:util";
 
 export default async function getEvents(
   filterConstraints: FilterConstraint[],
   forcedConflicts: ForcedConflict[],
-  onEvent: (event: any) => void,
+  optimizationTarget: OptimizationTarget,
+  onEvent: (event: GenerateTimeTableResponse) => void,
 ) {
+  // TODO: pull this out into a method generateTimeTable also does this
+  let filter_constraints = filterConstraints.map(({ uuid, ...rest }) => rest);
+  for (let i = 0; i < filter_constraints.length; i++) {
+    const targets = ["eq", "lte", "gte"];
+
+    for (const target of targets) {
+      if (filter_constraints[i][target] == "") {
+        delete filter_constraints[i][target];
+      }
+    }
+  }
+
   const body = {
     forced_conflicts: forcedConflicts.map(({ uuid, ...rest }) => rest),
-    filter_constraints: filterConstraints.map(({ uuid, ...rest }) => rest),
+    filter_constraints: filter_constraints,
+    optimization_target: optimizationTarget,
   };
 
   const response = await fetch("http://localhost:8000/all-time-tables", {
@@ -25,7 +45,9 @@ export default async function getEvents(
       console.log("break!");
       break;
     }
-    console.log("received", value, "iter", iter);
-    // console.log("received", JSON.parse(value));
+
+    const data = value?.split("data:")[1];
+    const schedule = JSON.parse(data);
+    onEvent(schedule);
   }
 }

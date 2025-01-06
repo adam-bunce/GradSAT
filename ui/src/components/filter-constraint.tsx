@@ -7,7 +7,7 @@
 
 // TODO: api call to server, scrape courses daily, put in db, sql query
 
-import TextSelect from "@/components/course-input";
+import TextSelect from "@/components/text-select";
 
 const courseOptions = [
   "ALSU1101U",

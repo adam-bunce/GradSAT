@@ -53,13 +53,19 @@ class TTSolution:
         self.courses = courses
         self.status = status
 
-    def __str__(self):
-        buf = ""
+    @property
+    def status_ok(self) -> bool:
         if self.status in [
             cp_model.UNKNOWN,
             cp_model.INFEASIBLE,
             cp_model.MODEL_INVALID,
         ]:
+            return False
+        return True
+
+    def __str__(self):
+        buf = ""
+        if not self.status_ok:
             buf += "No Solution"
         else:
             buf += "Solved\n"
@@ -380,7 +386,7 @@ class TTSolver:
         if enumerate_all_solutions:
             self.solver.parameters.enumerate_all_solutions = True
 
-        # significant wall time perf improvement
+        # 2.7s -> .12s per solve with this turned on
         self.pre_cull(self.problem_instance.filter_constraints)
 
         self._build_model()
@@ -535,6 +541,13 @@ class TTSolver:
 
             if fc.eq is not None:
                 self.model.add(sum(courses_taken) == fc.eq)
+
+    def exclude_course(self, course_nid: str):
+        assert (
+            "_" in course_nid
+        ), "course_nid invalid expected format: UNSP1111U_TYPE_CRN"
+        course_taken = self.d_vars.course_was_taken[course_nid]
+        self.model.add(course_taken == 0)
 
     def _add_constraints(self):
         self.add_filter_constraints()

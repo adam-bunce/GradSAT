@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import pymupdf
 
 from scraper.models import ListOfMinimumClassInfo
+from solver.time_tables.main import generate_multiple_optimal_schedules
 from solver.time_tables.model import (
     TTFilterConstraint,
     TTProblemInstance,
@@ -68,13 +69,16 @@ def generate_time_tables(ttr: TimeTableRequest):
 @app.post("/all-time-tables")
 def generate_all_time_tables(ttr: TimeTableRequest):
     async def time_table_generator():
-        res = [1, 2, 3, 4, 5]
-        for num in res:
-            data = json.dumps({"data": num})
+        problem_instance = TTProblemInstance(
+            courses=course_list.lomci,
+            forced_conflicts=ttr.forced_conflicts,
+            filter_constraints=ttr.filter_constraints,
+            optimization_target=ttr.optimization_target,
+        )
 
-            # TODO: remove
-            await asyncio.sleep(1)
-            yield f"event: scheduleEvent\ndata:{json.dumps({'data': num})}\n\n"
+        for sol in generate_multiple_optimal_schedules(problem_instance):
+            await asyncio.sleep(0.01)  # sends as 1 if no sleep?
+            yield f"event:scheduleEvent\ndata: {sol.response().model_dump_json()}\n\n"
 
     return StreamingResponse(time_table_generator(), media_type="text/event-stream")
 

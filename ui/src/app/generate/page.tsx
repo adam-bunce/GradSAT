@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import WindowSelect from "@/components/window-select";
 import { Button } from "@/components/ui/button";
+import { type CarouselApi } from "@/components/ui/carousel";
 import generateTimeTable, {
-  DayOfTheWeek,
-  ForcedConflict,
-  FilterConstraint,
   CourseList,
+  DayOfTheWeek,
+  FilterConstraint,
+  ForcedConflict,
   OptimizationTarget,
 } from "@/api/generateTimeTable";
 import STFilterConstraint from "@/components/filter-constraint";
@@ -19,6 +20,15 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
+import getEvents from "@/api/streamGenerateTimeTables";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // having like text on the right size that is synopsis of the constraint and also modifieable (remove things)
 // would be nice // also ~need~ calendar summary of forced conflicts
@@ -38,42 +48,23 @@ function Page() {
     },
   ]);
   const [forcedConflicts, setForcedConflicts] = useState<ForcedConflict[]>([]);
-  const [schedule, setSchedule] = useState<null | CourseList>(null);
+  const [schedule, setSchedule] = useState<CourseList[]>([]);
   const { toast } = useToast();
   const [scheduleIsLoading, setScheduleIsLoading] = useState(false);
   const [optimizationTarget, setOptimizationTarget] = useState(
     OptimizationTarget.CoursesTaken,
   );
+  const [api, setApi] = useState<CarouselApi>();
+  const [currentCarouselItem, setCurrentCarouselItem] = useState<number | null>(
+    null,
+  );
+  const [tab, setTab] = useState("1");
 
-  const genSchedule = async () => {
-    setScheduleIsLoading(true);
+  useEffect(() => {
+    if (!api) return;
 
-    try {
-      const dayToCourseList = await generateTimeTable(
-        filterConstraints,
-        forcedConflicts,
-        optimizationTarget,
-      );
-      if (!dayToCourseList.found_solution) {
-        console.log("unable to find solution");
-        toast({
-          title: "Error",
-          description: "Unable to find solution, try relaxing constraints.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setSchedule(dayToCourseList.courses);
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Unable to generate schedule",
-        variant: "destructive",
-      });
-    } finally {
-      setScheduleIsLoading(false);
-    }
-  };
+    setCurrentCarouselItem(api.selectedScrollSnap() + 1);
+  }, [api]);
 
   const updateFilterConstraints = (
     uuid: string,
@@ -112,14 +103,6 @@ function Page() {
 
   return (
     <div className={"space-y-3"}>
-      {/*NOTE: events work fine but the model can't get multiple optimal solutions w/o me modifying it */}
-      {/*<Button*/}
-      {/*  onClick={() =>*/}
-      {/*    getEvents(filterConstraints, forcedConflicts, (ev) => console.log(ev))*/}
-      {/*  }*/}
-      {/*>*/}
-      {/*test events*/}
-      {/*</Button>*/}
       <div className={"flex flex-col  gap-4"}>
         <div className={"border border-black space-y-2 bg-white "}>
           <h2
@@ -276,7 +259,6 @@ function Page() {
           </div>
         </div>
       </div>
-
       <div className={"border border-black space-y-2 bg-white "}>
         <h2
           className={
@@ -339,26 +321,71 @@ function Page() {
       </div>
 
       <Button
-        onClick={() => genSchedule()}
         className={"bg-lime-700 hover:bg-lime-600"}
+        onClick={async () => {
+          if (scheduleIsLoading) return;
+          setScheduleIsLoading(true);
+          setSchedule([]);
+          // reset to first tab
+          setTab("1");
+
+          await getEvents(
+            filterConstraints,
+            forcedConflicts,
+            OptimizationTarget.CoursesTaken,
+            (ev) => {
+              if (!ev.found_solution) {
+                toast({
+                  title: "Error",
+                  description:
+                    "Failed to generate valid schedule, try relaxing constraints",
+                  variant: "destructive",
+                });
+                return;
+              } else {
+                setSchedule((prev) => [...prev, ev.courses]);
+              }
+            },
+          );
+
+          setScheduleIsLoading(false);
+        }}
       >
-        GENERATE
+        Generate
       </Button>
+
       <div>
-        {!scheduleIsLoading && schedule !== null && (
-          <WeeklySchedule courses={schedule} />
-        )}
-        {/*TODO: modal or tooltip wiht course info, diff colours if tut/lab/lecture*/}
-        {scheduleIsLoading && (
-          <div
-            className={
-              "h-[100px] w-[80%] m-auto bg-gray-400 animate-pulse mt-8 flex items-center justify-center"
-            }
-          >
-            Generating Schedule
-          </div>
-        )}
+        <Tabs onValueChange={setTab} value={tab}>
+          <TabsList className={"grid grid-cols-4 md:grid-cols-5 h-fit"}>
+            <>
+              {schedule.map((courseList, idx) => (
+                <TabsTrigger key={idx + 1} value={(idx + 1).toString()}>
+                  Option {idx + 1}
+                </TabsTrigger>
+              ))}
+              {scheduleIsLoading && (
+                <TabsTrigger disabled className={"animate-pulse"}>
+                  Loading...
+                </TabsTrigger>
+              )}
+            </>
+          </TabsList>
+          <>
+            {" "}
+            {schedule.map((courseList, idx) => (
+              <TabsContent key={idx + 1} value={(idx + 1).toString()}>
+                <WeeklySchedule courses={courseList} />
+              </TabsContent>
+            ))}
+          </>
+        </Tabs>
       </div>
+
+      {schedule.length === 0 && scheduleIsLoading && (
+        <div
+          className={"animate-pulse h-[500px]  bg-zinc-400 w-10/12 mx-auto"}
+        ></div>
+      )}
     </div>
   );
 }
