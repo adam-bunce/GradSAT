@@ -1,5 +1,7 @@
 *.env
 *.jar
+.idea
+*.numbers
 /backend/scout_platform/cp_sat/v2/parser/generated
 /misc
 
