@@ -44,12 +44,12 @@
     }
 
     .basic-shadow {
-        box-shadow: 4px 4px rgba(0, 0, 0, .4);
+        box-shadow: 4px 4px rgba(0, 0, 0, 0.2);
     }
 
     .basic-shadow:hover {
         /*tailwind duration makes this have a transition i think*/
-        box-shadow: 7px 7px rgba(0, 0, 0, .5);
+        box-shadow: 7px 7px rgba(0, 0, 0, .3);
     }
 
     .divider {

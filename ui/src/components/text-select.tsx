@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const TextSelect = ({ onChange, selectedItems, itemOptions, boxText }) => {
   const [itemInput, setCourseInput] = useState<string>("");
@@ -6,7 +6,7 @@ const TextSelect = ({ onChange, selectedItems, itemOptions, boxText }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const filterSuggestions = (value) => {
-    if (!value) return [];
+    if (!value) return []; // itemOptions.slice(0, 5);
     const filtered = itemOptions.filter((option) =>
       option.toLowerCase().includes(value.toLowerCase()),
     );

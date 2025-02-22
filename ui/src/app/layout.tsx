@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Course Search",
+  title: "Droppable Search",
   description: "CP-SAT Powered Information Portal",
 };
 

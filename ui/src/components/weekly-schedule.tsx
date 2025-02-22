@@ -74,6 +74,7 @@ export default function WeeklySchedule({ courses }) {
           ))}
         </div>
 
+        {/*TODO: shrink col width if screen is small*/}
         <div
           className={
             "border-t border-gray-400  grid grid-cols-8 h-[600px] bg-white"

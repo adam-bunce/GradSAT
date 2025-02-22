@@ -355,30 +355,32 @@ function Page() {
       </Button>
 
       <div>
-        <Tabs onValueChange={setTab} value={tab}>
-          <TabsList className={"grid grid-cols-4 md:grid-cols-5 h-fit"}>
+        {!(schedule.length === 0) && (
+          <Tabs onValueChange={setTab} value={tab}>
+            <TabsList className={"grid grid-cols-4 md:grid-cols-5 h-fit"}>
+              <>
+                {schedule.map((courseList, idx) => (
+                  <TabsTrigger key={idx + 1} value={(idx + 1).toString()}>
+                    Option {idx + 1}
+                  </TabsTrigger>
+                ))}
+                {scheduleIsLoading && (
+                  <TabsTrigger disabled className={"animate-pulse"}>
+                    Loading...
+                  </TabsTrigger>
+                )}
+              </>
+            </TabsList>
             <>
+              {" "}
               {schedule.map((courseList, idx) => (
-                <TabsTrigger key={idx + 1} value={(idx + 1).toString()}>
-                  Option {idx + 1}
-                </TabsTrigger>
+                <TabsContent key={idx + 1} value={(idx + 1).toString()}>
+                  <WeeklySchedule courses={courseList} />
+                </TabsContent>
               ))}
-              {scheduleIsLoading && (
-                <TabsTrigger disabled className={"animate-pulse"}>
-                  Loading...
-                </TabsTrigger>
-              )}
             </>
-          </TabsList>
-          <>
-            {" "}
-            {schedule.map((courseList, idx) => (
-              <TabsContent key={idx + 1} value={(idx + 1).toString()}>
-                <WeeklySchedule courses={courseList} />
-              </TabsContent>
-            ))}
-          </>
-        </Tabs>
+          </Tabs>
+        )}
       </div>
 
       {schedule.length === 0 && scheduleIsLoading && (

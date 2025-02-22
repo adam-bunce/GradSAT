@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button";
 import processPdf from "@/api/processPdf";
 import { useToast } from "@/hooks/use-toast";
 import verifyGraduation from "@/api/verifyGraduation";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+} from "@/components/ui/select";
 
 export default function Page() {
   const { toast } = useToast();
@@ -115,6 +123,14 @@ export default function Page() {
       </div>
 
       {/*TODO multi program maps or custom program map*/}
+      <Select>
+        <SelectTrigger>Select Course Map</SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="computer-science">Computer Science</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
       <div className={"text-lg font-semibold"}>
         Program Map Select:{" "}
         <span className={"font-normal"}>Computer Science</span>

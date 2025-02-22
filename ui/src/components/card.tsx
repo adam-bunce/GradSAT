@@ -4,7 +4,7 @@ export default function Card({ header, body, image_url }) {
   return (
     <div
       className={
-        "text-lg flex flex-col border border-black basic-shadow hover:-translate-y-2 duration-300 break-inside-avoid bg-white cursor-pointer"
+        "text-lg flex flex-col border border-black rounded-[2px] basic-shadow hover:-translate-y-2 duration-300 break-inside-avoid bg-white cursor-pointer"
       }
     >
       <h6
