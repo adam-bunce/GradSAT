@@ -1,7 +1,7 @@
 from ortools.sat.python import cp_model
 import pandas as pd
 
-from solver.v2.static import int_to_semester
+from scout_platform.cp_sat.v2.static import int_to_semester
 
 
 def are_all_true(
@@ -12,6 +12,13 @@ def are_all_true(
     model.add_bool_or([~var for var in variables]).only_enforce_if(~all_vars_true)
 
     return all_vars_true
+
+def are_any_true(model: cp_model.CpModel, variables: list[cp_model.BoolVarT]) -> cp_model.BoolVarT:
+    some_are_true = model.new_bool_var(f"{'∨'.join([str(var) for var in variables])}")
+    model.add_bool_or(variables).only_enforce_if(some_are_true)
+    model.add(sum(variables) == 0).only_enforce_if(~some_are_true)
+
+    return some_are_true
 
 
 def false_var(model: cp_model.CpModel) -> cp_model.BoolVarT:
@@ -136,8 +143,12 @@ class TakenBeforeDict(dict):
         )
 
         # class_1 must be taken_in year lower than class_2, if we take class_2
+        # lowkey i forget why this works, right now I feel like it should only be enforced if the class_1_taken_before_class_2 is true
+        # this might be a bug?
+        # NOTE(adam/mon feb 11:50 this might of fixed my instant infeasability problem)
         self.model.add(self.taken_in[class_1] < self.taken_in[class_2]).only_enforce_if(
-            self.taken[class_2]
+            # self.taken[class_2]
+            class_1_taken_before_class_2
         )
 
         self[key] = class_1_taken_before_class_2

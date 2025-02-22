@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 from ortools.sat.python import cp_model
 
-from scraper.models import MinimumClassInfo
-from solver.v2.dependent_variables import (
+from scout_platform.scraper.models import MinimumClassInfo
+from scout_platform.cp_sat.v2.dependent_variables import (
     false_var,
     zero_int,
     empty_interval,
@@ -19,7 +19,7 @@ from solver.v2.dependent_variables import (
     create_optional_interval_variable,
     true_var,
 )
-from solver.v2.util import print_statistics
+from scout_platform.cp_sat.v2.util import print_statistics
 
 
 @dataclass
@@ -578,7 +578,7 @@ class TTSolver:
         self.model.minimize(sum(self.d_vars.day_to_time_on_campus.values()))
 
     def solve(self) -> TTSolution:
-        # status = self.solver.solve(self.model)
+        # status = self.cp_sat.solve(self.model)
         status = -1
         if self.enumerate_all_solutions:
             status = self.solver.solve(self.model, self.callback)

@@ -1,7 +1,12 @@
+import json
 from typing import Generator
 
-from scraper.models import ListOfMinimumClassInfo
-from solver.time_tables.model import (
+from sqlalchemy import select
+
+from scout_platform.db.schema import Course
+from scout_platform.scraper.info_reducer import raw_to_minimum
+from scout_platform.scraper.models import ListOfMinimumClassInfo, MinimumClassInfo
+from scout_platform.cp_sat.time_tables.model import (
     TTProblemInstance,
     TTSolver,
     TTFilterConstraint,
@@ -9,8 +14,26 @@ from solver.time_tables.model import (
     TTSolution,
 )
 
+from scout_platform.db.database import get_db, create_url
 
-def read_data(path: str) -> ListOfMinimumClassInfo:
+
+def read_data_from_db() -> ListOfMinimumClassInfo:
+    all_data: list[MinimumClassInfo] = []
+    with get_db(create_url()) as db:
+        query = select(Course.data)
+        courses = db.execute(query).fetchall()
+        for crs in courses:
+            mci = raw_to_minimum(crs[0])  # return type is a tuple w/ data as only col
+            all_data.append(mci)
+
+    lomci = ListOfMinimumClassInfo(lomci=all_data)
+    with open("tmp.json", "w") as f:
+        json.dump(lomci.model_dump(), f, indent=4)
+
+    return lomci
+
+
+def read_data_from_disk(path: str) -> ListOfMinimumClassInfo:
     with open(path, "r") as f:
         tmp = f.read()
         return ListOfMinimumClassInfo.model_validate_json(tmp)
@@ -18,7 +41,7 @@ def read_data(path: str) -> ListOfMinimumClassInfo:
 
 # recursive impl where i exclude 1 course, then 2, then 3... would be better i think
 def generate_multiple_optimal_schedules(
-    problem_instance: TTProblemInstance,
+        problem_instance: TTProblemInstance,
 ) -> Generator[TTSolution, None, None]:
     already_excluded_courses: set[str] = set()
     courses_to_exclude: set[str] = set()
@@ -68,7 +91,11 @@ def generate_multiple_optimal_schedules(
 
 
 if __name__ == "__main__":
-    course_list = read_data("data.json")
+    course_list = read_data_from_disk("../reduced_info.json")
+    # course_list = read_data_from_db()
+    print(course_list.lomci[:5])
+
+    course_list = read_data_from_disk("data.json")
 
     problem_instance = TTProblemInstance(
         courses=course_list.lomci,
@@ -82,6 +109,7 @@ if __name__ == "__main__":
 
     for sol in generate_multiple_optimal_schedules(problem_instance):
         print(sol)
+        print("------------------------")
 
     exit(1)
 

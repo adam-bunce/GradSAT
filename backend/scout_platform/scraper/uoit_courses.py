@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 import bs4
 
-from models import Model
+from scout_platform.scraper.models import Model
 
 
 class Scraper:
@@ -33,6 +33,9 @@ class Scraper:
         logging.getLogger().setLevel(logging.INFO)
         if not self.__cookie and not self.__unique_session_id:
             self.refresh_creds()
+
+    def start_scrape(self):
+        print("TODO: add")
 
     def get_courses(self, limit: int, offset: int) -> Model:
         # TODO: probably a better way to handle when these are invalidated

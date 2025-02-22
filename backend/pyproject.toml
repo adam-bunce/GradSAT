@@ -1,0 +1,27 @@
+[project]
+name = "scout_platform"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+requires-python = "==3.12"
+dependencies = [
+    "ortools (>=9.11.4210,<10.0.0)",
+    "pymupdf (>=1.25.1,<2.0.0)",
+    "fastapi[standard] (>=0.115.8,<0.116.0)",
+    "pydantic (>=2.10.5,<3.0.0)",
+    "pytest-playwright (>=0.6.2,<0.7.0)",
+    "requests (>=2.32.3,<3.0.0)",
+    "beautifulsoup4 (>=4.12.3,<5.0.0)",
+    "python-dotenv (>=1.0.1,<2.0.0)",
+    "antlr4-python3-runtime (>=4.13.2,<5.0.0)",
+    "sqlalchemy (>=2.0.37,<3.0.0)",
+    "psycopg2-binary (>=2.9.10,<3.0.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+server="scout_platform.server.main:main"

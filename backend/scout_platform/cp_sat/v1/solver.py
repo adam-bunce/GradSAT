@@ -330,7 +330,7 @@ if __name__ == "__main__":
                 "y4_elective",
             ],
         ]
-        # replace values in df w/ solver values
+        # replace values in df w/ cp_sat values
         solved_courses = solved_courses.map(lambda x: solver.Value(x))
 
         with pd.option_context("display.max_rows", None, "display.max_columns", None):

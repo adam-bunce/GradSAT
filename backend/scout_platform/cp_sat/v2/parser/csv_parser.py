@@ -1,8 +1,8 @@
 import csv
 from collections import defaultdict
 
-from solver.v2.parser.dnf_convertor import expr_to_dnf
-from solver.v2.static import Programs
+from scout_platform.cp_sat.v2.parser.dnf_convertor import expr_to_dnf
+from scout_platform.cp_sat.v2.static import Programs
 
 from pydantic import (
     BaseModel,
@@ -166,13 +166,13 @@ class CourseCsvParser:
 
 
 if __name__ == "__main__":
-    p = CourseCsvParser(path="../../../misc/uoit_courses.csv")
-    out = p.parse(show_errors=False)
-    c = "KINE4495U"
+    # p = CourseCsvParser(path="../../../misc/uoit_courses.csv")
+    # out = p.parse(show_errors=False)
+    # c = "KINE4495U"
     # print(out.loc[c]["pre_requisites"])
 
     print(
         expr_to_dnf(
-            "(((HLSC 3020U or KINE 2020U ) and HLSC 3472U and (HLSC 3481U or KINE 2130U ) and (HLSC 4482U or KINE 4482U ) and permission of the course instructor) or (HLSC 4494U or KINE 4494U ) and permission of the course instructor))"
+            "(((HLSC 3020U or KINE 2020U ) and HLSC 3472U and (HLSC 3481U or KINE 2130U ) and (HLSC 4482U or KINE 4482U )) or (HLSC 4494U or KINE 4494U )))"
         )
     )

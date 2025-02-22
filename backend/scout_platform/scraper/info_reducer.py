@@ -2,12 +2,52 @@ import json
 import os
 from typing import Dict, List
 
-from models import (
+from scout_platform.scraper.models import (
     ClassInfoList,
     MinimumClassInfo,
     MinimumMeetingTime,
-    ListOfMinimumClassInfo,
+    ListOfMinimumClassInfo, ClassInfo,
 )
+
+def raw_to_minimum(raw: str) -> MinimumClassInfo:
+    class_info = ClassInfo.model_validate_json(raw)
+
+    return MinimumClassInfo(
+        id=class_info.courseReferenceNumber,
+        class_code=class_info.subjectCourse,
+        type=class_info.scheduleTypeDescription,
+        subject=class_info.subject,
+        meeting_times=[
+            MinimumMeetingTime(
+                begin_time=meeting.meetingTime.beginTime,
+                end_time=meeting.meetingTime.endTime,
+                monday=meeting.meetingTime.monday,
+                tuesday=meeting.meetingTime.tuesday,
+                wednesday=meeting.meetingTime.wednesday,
+                thursday=meeting.meetingTime.thursday,
+                friday=meeting.meetingTime.friday,
+                saturday=meeting.meetingTime.saturday,
+                sundray=meeting.meetingTime.sunday,
+            )
+            for meeting in class_info.meetingsFaculty
+            if any(
+                [
+                    meeting.meetingTime.beginTime,
+                    meeting.meetingTime.endTime,
+                    meeting.meetingTime.monday,
+                    meeting.meetingTime.tuesday,
+                    meeting.meetingTime.wednesday,
+                    meeting.meetingTime.thursday,
+                    meeting.meetingTime.friday,
+                    meeting.meetingTime.saturday,
+                    meeting.meetingTime.sunday,
+                ]
+            )
+        ],
+        linked_sections=list(class_info.linkedSections.values()),
+    )
+
+
 
 
 def process_json_files(

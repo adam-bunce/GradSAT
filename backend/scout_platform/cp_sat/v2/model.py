@@ -3,7 +3,7 @@ from collections import defaultdict
 from enum import Enum
 from typing import Optional
 import re
-from dependent_variables import (
+from scout_platform.cp_sat.v2.dependent_variables import (
     TakenBeforeDict,
     AllTakenDict,
     are_all_true,
@@ -25,12 +25,12 @@ from pydantic import (
 from ortools.sat.python import cp_model
 import pandas as pd
 
-from solver.v2.static import (
+from scout_platform.cp_sat.v2.static import (
     int_to_semester,
     Programs,
     year_to_sem,
 )
-from solver.v2.util import print_statistics
+from scout_platform.cp_sat.v2.util import print_statistics
 
 
 class CourseType(Enum):
@@ -52,7 +52,7 @@ class FilterConstraint(BaseModel):
     Defaults to all if not specified. filter narrows.
     """
 
-    uuid: str
+    # uuid: str
 
     lte: Optional[int] = Field(
         description="maximum credit hours for filters", default=None
@@ -82,6 +82,8 @@ class GraduationRequirementsInstance:
         self.courses[["pre_requisites"]].to_html("courses.html")
 
         self.semester_names: list[str] = semesters
+
+        self.course_ratings: list[tuple[str, int]] = []
 
 
 class GraduationRequirementsConfig(BaseModel):
@@ -127,7 +129,6 @@ class _CourseVariables:
 
         # unknowns
         self.courses: pd.DataFrame = self._init_unknown_variables()
-        print(self.courses)
 
         # dependent variables
         self.taken_in: pd.Series = self._init_taken_in()
@@ -228,7 +229,7 @@ class GraduationRequirementsSolver:
         )
         self.logger = logging.getLogger(__name__)
 
-        print(type(self.problem_instance.courses["credit_hours"]))
+        # print(type(self.problem_instance.courses["credit_hours"]))
         self._class_vars = _CourseVariables(
             problem_instance.courses.index.values,
             problem_instance.semester_names,
@@ -270,6 +271,7 @@ class GraduationRequirementsSolver:
         self.model.add(c)
 
     def apply_credit_restrictions(self, course: str, restrictions: list[str]):
+        # TODO: why is this only spreading the first restricitn?
         course_codes = [course, *restrictions[0]]
         course_codes = list(
             filter(lambda x: x in self._class_vars.courses.index.values, course_codes)
@@ -326,6 +328,7 @@ class GraduationRequirementsSolver:
             course, prerequisite_options
         )
         if not ok:
+            # print("couldnt find course", course)
             return False
 
         course_taken = self._class_vars.taken[course]
@@ -396,11 +399,14 @@ class GraduationRequirementsSolver:
 
     def apply_unknown_prerequisites(self, course_code: str, unknown_pre_req: str):
         course_taken = self._class_vars.taken[course_code]
-        prereq_met = self.model.new_bool_var(f"met_'{unknown_pre_req[0][0]}'")
+        # prereq_met = self.model.new_bool_var(f"met_'{unknown_pre_req[0][0]}'")
+        #
+        # # if we take this course, whatever this is must be met
+        # self.model.add(prereq_met == 1).only_enforce_if(course_taken)
+        # self._class_vars.unknown_prereqs[course_code] = prereq_met
 
-        # if we take this course, whatever this is must be met
-        self.model.add(prereq_met == 1).only_enforce_if(course_taken)
-        self._class_vars.unknown_prereqs[course_code] = prereq_met
+        # we cant take the course if we cant understand the pre-req
+        self.model.add(course_taken == 0)
 
     def collect_filtered_variables(self, f: Filter) -> list[tuple[str, list[any]]]:
         match f.type:
@@ -459,6 +465,7 @@ class GraduationRequirementsSolver:
     def apply_filter_constraint(self, f: FilterConstraint):
         courses_to_filter = self.collect_filtered_variables(f.filter)
 
+
         # Dependant variable representing the # of credit hours we've taken in this subst of courses
         filter_set_credit_hours = self.model.new_int_var(
             lb=0, ub=10_000, name="filter_set_credit_hours"
@@ -502,6 +509,7 @@ class GraduationRequirementsSolver:
             if restrictions:
                 self.apply_credit_restrictions(course, restrictions)
 
+        invalid_prereq_count = 0
         unhandled_pre_reqs: dict[str, str] = dict()
         for course_code, prerequisite_options in zip(
             self.problem_instance.courses.index,
@@ -509,11 +517,15 @@ class GraduationRequirementsSolver:
         ):
             if prerequisite_options:
                 if not self.apply_pre_requisite(course_code, prerequisite_options):
-                    print("invalid prereq:", course_code, "->", prerequisite_options)
+                    # print("invalid prereq:", course_code, "->", prerequisite_options)
+                    invalid_prereq_count += 1
                     unhandled_pre_reqs[course_code] = prerequisite_options
+        print(f"{invalid_prereq_count} invalid prereqs.")
 
         for course, unknown_pre_req in unhandled_pre_reqs.items():
             self.apply_unknown_prerequisites(course, unknown_pre_req)
+
+        self.model.add(sum([self._class_vars.taken[course] for course in self.problem_instance.required_courses]) == len(self.problem_instance.required_courses))
 
         for course_code, co_requisite_option in zip(
             self.problem_instance.courses.index,
@@ -522,29 +534,34 @@ class GraduationRequirementsSolver:
             if co_requisite_option:
                 self.apply_co_requisite(course_code, co_requisite_option)
 
-        for course_code, post_requisites in [
-            ("csci4410u", [["csci4420u"]]),
-        ]:
-            if post_requisites:
-                self.apply_post_requisite(course_code, post_requisites)
-
-        self.add_minimum_year_constraint("csci4040u", 3)
+        # for course_code, post_requisites in [
+        #     ("csci4410u", [["csci4420u"]]),
+        # ]:
+        #     if post_requisites:
+        #         self.apply_post_requisite(course_code, post_requisites)
+        #
+        # self.add_minimum_year_constraint("csci4040u", 3)
 
         for filter_constraint in self.problem_instance.filter_constraints:
             self.apply_filter_constraint(filter_constraint)
 
     def _build_model(self):
         self._add_constraints()
-        # minimize assumptions
-        self.model.minimize(sum(self._class_vars.unknown_prereqs.values()))
+        # minimize assumptions (tmp off for testing)
+        # self.model.minimize(sum(self._class_vars.unknown_prereqs.values()))
 
     def solve(self) -> GraduationRequirementsSolution:
         self.solver.parameters.max_time_in_seconds = self.config.time_limit
         self.solver.parameters.relative_gap_limit = self.config.opt_tol
 
+        # self.set_minimization_target(filter_constraint=Filter(
+        #     programs=[Programs.information_technology, Programs.engineering, Programs.business, Programs.automotive_engineering, Programs.forensic_science, Programs.kinesiology, Programs.forensic_psychology, Programs.education, Programs.medical_laboratory_science, Programs.environmental_science]
+        # ))
+
         status = self.solver.solve(self.model)
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
             # course_taken = self._class_vars.taken[course]
+            print("[Populate Model] SUCCESS, OBJECTIVE:", self.solver.objective_value)
 
             for k, v in self._class_vars.credit_hours_per_semester.items():
                 print(k, "~>", self.solver.value(v))
@@ -565,15 +582,10 @@ class GraduationRequirementsSolver:
             if self.config.print_stats:
                 print_statistics(self.solver)
 
-            print("Assumptions:")
-            for course, prereq in self._class_vars.unknown_prereqs.items():
-                if course in courses_taken_just_codes:
-                    if self.solver.value(prereq) == 1:
-                        print(course, "->", prereq)
-
             return GraduationRequirementsSolution(taken_courses=courses_taken)
         else:
-            print(f"No Solution {self.solver.status_name()}")
+            print(f"[Populate Model] No Solution {self.solver.status_name()}")
+
             if self.config.print_stats:
                 print_statistics(self.solver)
             return GraduationRequirementsSolution(taken_courses=dict())
@@ -585,11 +597,13 @@ class GraduationRequirementsSolver:
         self.model.add(self._class_vars.taken[class_name] == 0)
 
     def take_class_in(self, class_name: str, semester: int):
-        assert 1 < semester < 9, "only 8 semesters (1->9)"
+        class_name = class_name.lower()
+        assert 1 <= semester <= 9, "only 8 semesters (1->9)"
         self.model.add(self._class_vars.taken_in.loc[class_name] == semester)
 
     def dont_take_class_in(self, class_name: str, semester: int):
-        assert 1 < semester < 9, "only 8 semesters (1->9)"
+        class_name = class_name.lower()
+        assert 1 <= semester <= 9, "only 8 semesters (1->9)"
         self.model.add(self._class_vars.taken_in.loc[class_name] != semester)
 
     def set_maximization_target(self, filter_constraint: Filter):
@@ -601,3 +615,8 @@ class GraduationRequirementsSolver:
         values = self.collect_filtered_variables(filter_constraint)
         values = [d_var for course_name, d_var in values]
         self.model.minimize(sum(values))
+
+    def set_star_rating_maximization_target(self, ratings: list[tuple[str, int]]):
+        self.model.maximize(sum(
+            [self._class_vars.taken[course.lower()] * (rating - 3) for course, rating in ratings if rating != 3]
+        ))

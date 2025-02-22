@@ -10,7 +10,7 @@ from model import (
     CourseType,
     Filter,
 )
-from solver.v2.static import (
+from scout_platform.cp_sat.v2.static import (
     all_semesters,
     Programs,
 )
@@ -26,6 +26,7 @@ def parse_and_pickle_csv(csv_path: str):
     csv_parser = CourseCsvParser(path=csv_path)
     df = csv_parser.parse()
     path = csv_path.replace(".csv", ".pickle")
+
     # fix most frequent parse failures
     tmp = dict(
         sorted(
@@ -44,11 +45,12 @@ def parse_and_pickle_csv(csv_path: str):
         os.remove(path)
 
     df.to_pickle(path)
+    print(df)
     print(df.iloc[0])
 
 
 def main():
-    parse_and_pickle_csv("../../misc/uoit_courses.csv")
+    parse_and_pickle_csv("uoit_courses_copy.csv")
     # 45 credit hours in electives
     min_elective_ch = FilterConstraint(gte=45, filter=Filter(type=CourseType.Elective))
 
@@ -147,7 +149,7 @@ def main():
     gr_instance = GraduationRequirementsInstance(
         program_map=cs_program_map,
         semesters=all_semesters,
-        pickle_path="../../misc/uoit_courses.pickle",
+        pickle_path="uoit_courses_copy.pickle",
     )
     gr_config = GraduationRequirementsConfig(print_stats=True)
     solver = GraduationRequirementsSolver(
@@ -160,22 +162,22 @@ def main():
     )  # forces csci3090, CSCI2010(+ CSCI1060U), (MATH2050U or MATH1850),
 
     print("program map valid?:", solver.validate_program_map())
-    solver.take_class("csci4410u")  # thesis forces CSCI4420U after it
-    solver.take_class_in("busi2000u", 2)
+    # solver.take_class("csci4410u")  # thesis forces CSCI4420U after it
+    # solver.take_class_in("busi2000u", 2)
 
     # infeasible if year standing constraint work (need 2nd year standing)
-    # solver.take_class_in("busi2312u", 2)
-    solver.take_class_in("busi2312u", 3)
+    # cp_sat.take_class_in("busi2312u", 2)
+    # solver.take_class_in("busi2312u", 3)
 
-    solver.set_maximization_target(
-        Filter(
-            programs=[Programs.mathematics],
-            year_levels=[3, 4],
-            type=CourseType.Elective,
-        )
-    )
+    # solver.set_maximization_target(
+    #     Filter(
+    #         programs=[Programs.mathematics],
+    #         year_levels=[3, 4],
+    #         type=CourseType.Elective,
+    #     )
+    # )
 
-    solver.set_minimization_target(Filter(programs=[Programs.biology]))
+    # solver.set_minimization_target(Filter(programs=[Programs.biology]))
 
     taken_classes = solver.solve()
     print(taken_classes)
