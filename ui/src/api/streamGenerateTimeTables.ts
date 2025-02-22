@@ -4,7 +4,8 @@ import {
   GenerateTimeTableResponse,
   OptimizationTarget,
 } from "@/api/generateTimeTable";
-import { callbackify } from "node:util";
+import { Property } from "csstype";
+import Filter = Property.Filter;
 
 export default async function getEvents(
   filterConstraints: FilterConstraint[],
@@ -12,14 +13,20 @@ export default async function getEvents(
   optimizationTarget: OptimizationTarget,
   onEvent: (event: GenerateTimeTableResponse) => void,
 ) {
-  // TODO: pull this out into a method generateTimeTable also does this
-  let filter_constraints = filterConstraints.map(({ uuid, ...rest }) => rest);
+  // TODO: pull this out into a method generateTimeTable also does this, ts Omit<>
+  const filter_constraints = filterConstraints.map(({ uuid, ...rest }) => rest);
+
   for (let i = 0; i < filter_constraints.length; i++) {
     const targets = ["eq", "lte", "gte"];
 
     for (const target of targets) {
-      if (filter_constraints[i][target] == "") {
-        delete filter_constraints[i][target];
+      if (
+        filter_constraints[i][target as keyof Omit<FilterConstraint, "uuid">] ==
+        ""
+      ) {
+        delete filter_constraints[i][
+          target as keyof Omit<FilterConstraint, "uuid">
+        ];
       }
     }
   }

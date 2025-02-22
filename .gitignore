@@ -1,7 +1,6 @@
 *.env
-*.idea
 *.jar
-models/v2/parser/generated
+/backend/scout_platform/cp_sat/v2/parser/generated
 /misc
 
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
@@ -45,3 +44,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl

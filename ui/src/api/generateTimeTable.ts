@@ -70,8 +70,13 @@ export default async function generateTimeTable(
     const targets = ["eq", "lte", "gte"];
 
     for (const target of targets) {
-      if (filter_constraints[i][target] == "") {
-        delete filter_constraints[i][target];
+      if (
+        filter_constraints[i][target as keyof Omit<FilterConstraint, "uuid">] ==
+        ""
+      ) {
+        delete filter_constraints[i][
+          target as keyof Omit<FilterConstraint, "uuid">
+        ];
       }
     }
   }

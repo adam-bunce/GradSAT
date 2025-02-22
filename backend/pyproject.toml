@@ -3,7 +3,8 @@ name = "scout_platform"
 version = "0.1.0"
 description = ""
 readme = "README.md"
-requires-python = "==3.12"
+#requires-python = "==3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "ortools (>=9.11.4210,<10.0.0)",
     "pymupdf (>=1.25.1,<2.0.0)",
