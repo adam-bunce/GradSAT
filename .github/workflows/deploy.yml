@@ -41,12 +41,12 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Build and push UI
-          docker build -f infra/docker/ui.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:ui-$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ui-$IMAGE_TAG
+          docker build -f infra/docker/ui.Dockerfile -t ui .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ui
           
           # Build and push API
-          docker build -f infra/docker/api.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:api-$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:api-$IMAGE_TAG
+          docker build -f infra/docker/api.Dockerfile -t api .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:api
 
       - name: Force ECS deployment
         run: |
