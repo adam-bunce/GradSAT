@@ -47,3 +47,8 @@ jobs:
           # Build and push API
           docker build -f infra/docker/api.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:api-$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:api-$IMAGE_TAG
+
+      - name: Force ECS deployment
+        run: |
+          aws ecs update-service --cluster thesis --service thesis-ui --force-new-deployment
+#          aws ecs update-service --cluster thesis --service thesis-api --force-new-deployment

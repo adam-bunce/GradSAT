@@ -9,7 +9,7 @@ resource "aws_ecs_task_definition" "thesis" {
   container_definitions = jsonencode([
     {
       name = "ui"
-      image = "${aws_ecr_repository.thesis.repository_url}/thesis-ui:latest"
+      image = "${aws_ecr_repository.thesis.repository_url}/ui"
       cpu = 1
       memory = 256
       portMappings = [
