@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import WindowSelect from "@/components/window-select";
 import { Button } from "@/components/ui/button";
-import { type CarouselApi } from "@/components/ui/carousel";
 import generateTimeTable, {
   CourseList,
   DayOfTheWeek,
@@ -21,19 +20,17 @@ import {
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import getEvents from "@/api/streamGenerateTimeTables";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // having like text on the right size that is synopsis of the constraint and also modifieable (remove things)
 // would be nice // also ~need~ calendar summary of forced conflicts
 function Page() {
   // TODO: remove test initalization
+  const [constraintCounter, setConstraintCounter] = useState(1);
+  const incCC = () => {
+    setConstraintCounter(constraintCounter + 1);
+  };
+
   const [filterConstraints, setFilterConstraints] = useState<
     FilterConstraint[]
   >([
@@ -42,11 +39,13 @@ function Page() {
       eq: 1,
       gte: undefined,
       lte: undefined,
-      uuid: crypto.randomUUID(),
+      uuid: "0",
       year_levels: [],
       subjects: [],
     },
   ]);
+  // incCC();
+
   const [forcedConflicts, setForcedConflicts] = useState<ForcedConflict[]>([]);
   const [schedule, setSchedule] = useState<CourseList[]>([]);
   const { toast } = useToast();
@@ -54,17 +53,7 @@ function Page() {
   const [optimizationTarget, setOptimizationTarget] = useState(
     OptimizationTarget.CoursesTaken,
   );
-  const [api, setApi] = useState<CarouselApi>();
-  const [currentCarouselItem, setCurrentCarouselItem] = useState<number | null>(
-    null,
-  );
   const [tab, setTab] = useState("1");
-
-  useEffect(() => {
-    if (!api) return;
-
-    setCurrentCarouselItem(api.selectedScrollSnap() + 1);
-  }, [api]);
 
   const updateFilterConstraints = (
     uuid: string,
@@ -117,9 +106,10 @@ function Page() {
                 setForcedConflicts([
                   ...forcedConflicts,
                   {
-                    uuid: crypto.randomUUID(),
+                    uuid: constraintCounter.toString(),
                   },
                 ]);
+                incCC();
               }}
             >
               +
@@ -167,7 +157,7 @@ function Page() {
                 setFilterConstraints([
                   ...filterConstraints,
                   {
-                    uuid: crypto.randomUUID(),
+                    uuid: constraintCounter.toString(),
                     course_codes: [],
                     subjects: [],
                     year_levels: [],
@@ -176,6 +166,8 @@ function Page() {
                     eq: "",
                   },
                 ]);
+
+                incCC();
               }}
             >
               +

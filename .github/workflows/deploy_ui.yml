@@ -2,13 +2,10 @@ name: Build/Push/Deploy UI to ECR
 
 on:
   workflow_dispatch:
-
-  push:
-    branches:
-      - main
-    paths:
-      - 'ui/**'
-      - 'infra/docker/ui.Dockerfile'
+    inputs:
+      lb_addr:
+        type: string
+        description: address of load balancer for service
 
 jobs:
   build-and-push:
@@ -35,7 +32,7 @@ jobs:
           ECR_REPOSITORY: thesis
         run: |
           docker build \
-            --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+            --build-arg NEXT_PUBLIC_API_URL="${{ github.event.inputs.lb_addr}}" \
             -f infra/docker/ui.Dockerfile  \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:ui .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:ui

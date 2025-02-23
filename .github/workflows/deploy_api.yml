@@ -35,7 +35,7 @@ jobs:
           ECR_REPOSITORY: thesis
         run: |
             docker build \
-              --build-arg UI_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+              --build-arg UI_URL="${{ github.event.inputs.lb_addr}}" \
               -f infra/docker/api.Dockerfile \
               -t $ECR_REGISTRY/$ECR_REPOSITORY:api .
             docker push $ECR_REGISTRY/$ECR_REPOSITORY:api
