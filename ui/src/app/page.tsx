@@ -1,10 +1,12 @@
+"use client";
+
 import { playfair, geist_mono } from "../../styles/fonts";
 import Card from "@/components/card";
 
 export default function Home() {
   return (
     <div className={"space-y-10"}>
-      <pre>{JSON.stringify(process.env, null, 2)}</pre>
+      <pre>{JSON.stringify(process.env.NEXT_PUBLIC_API_URL, null, 2)}</pre>
 
       <h3 className={`text-5xl mb-16 ${playfair.className} leading-snug`}>
         CP-SAT powered course scheduling and graduation planning.
