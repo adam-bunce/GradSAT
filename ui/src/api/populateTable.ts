@@ -32,11 +32,14 @@ export default async function populateTable(
   console.log("course_ratings:", course_ratings);
   console.log("taken_in:", taken_in);
 
-  const response = await fetch("http://localhost:8000/planner-generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetch(
+    process.env.NEXT_PUBLIC_API_URL + "/planner-generate",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
 
   // NOTE: do i want to do errors here or in the component
   if (!response.ok) {

@@ -9,7 +9,7 @@ export default async function verifyGraduation(
   const completed_courses_arr = completed_courses.split(",");
 
   const response = await fetch(
-    "http://localhost:8000/graduation-verification",
+    process.env.NEXT_PUBLIC_API_URL + "/graduation-verification",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

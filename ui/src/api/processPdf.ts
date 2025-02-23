@@ -12,10 +12,13 @@ export default async function processPdf(
 
   // high quality code base btw
   //@ts-ignore
-  const response = await fetch("http://localhost:8000/process-pdf", {
-    method: "POST",
-    body: forumData,
-  });
+  const response = await fetch(
+    process.env.NEXT_PUBLIC_API_URL + "/process-pdf",
+    {
+      method: "POST",
+      body: forumData,
+    },
+  );
 
   if (!response.ok) {
     throw new Error("Failed to upload PDF");

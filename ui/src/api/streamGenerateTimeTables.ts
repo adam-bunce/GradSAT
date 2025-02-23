@@ -37,11 +37,14 @@ export default async function getEvents(
     optimization_target: optimizationTarget,
   };
 
-  const response = await fetch("http://localhost:8000/all-time-tables", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetch(
+    process.env.NEXT_PUBLIC_API_URL + "/all-time-tables",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
 
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let iter = 0;
