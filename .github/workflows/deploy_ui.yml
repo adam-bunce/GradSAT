@@ -37,7 +37,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: thesis
         run: |
-          docker build -f infra/docker/ui.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:ui .
+          docker build --build-arg NEXT_PUBLIC_API_URL=${{ NEXT_PUBLIC_API_URL }} -f infra/docker/ui.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:ui .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:ui
 
       - name: Force ECS deployment
