@@ -1,14 +1,10 @@
+# NOTE: not sure if i need any of this anymore b/c i am now using a lb
+
+
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
-}
-
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "us-east-1a"
-  map_public_ip_on_launch = true
 }
 
 resource "aws_internet_gateway" "main" {
@@ -23,20 +19,29 @@ resource "aws_route_table" "public" {
   }
 }
 
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
+
+locals {
+  ingress_ports = [
+    {port = 3000, description = "ui"},
+    {port = 8000, description = "api"},
+    {port = 80, description = "web"},
+    {port = 443, description = "web-secure"},
+  ]
 }
 
 resource "aws_security_group" "ecs_tasks" {
   name   = "thesis-ecs-tasks"
   vpc_id = aws_vpc.main.id
 
-  ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = local.ingress_ports
+    content {
+      from_port = ingress.value.port
+      to_port = ingress.value.port
+      protocol = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+      description = ingress.value.description
+    }
   }
 
   egress {
@@ -44,5 +49,6 @@ resource "aws_security_group" "ecs_tasks" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "all outbound traffic"
   }
 }

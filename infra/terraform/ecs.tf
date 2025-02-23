@@ -15,6 +15,12 @@ resource "aws_ecs_task_definition" "thesis" {
     {
       name = "ui"
       image = "${aws_ecr_repository.thesis.repository_url}:ui"
+      environment = [
+        {
+          name = "NEXT_PUBLIC_API_URL"
+          value = "http://${aws_lb.thesis.dns_name}:8000"
+        }
+      ]
       portMappings = [
         {
           containerPort = 3000
@@ -25,6 +31,11 @@ resource "aws_ecs_task_definition" "thesis" {
     {
       name = "api"
       image = "${aws_ecr_repository.thesis.repository_url}:api"
+      environment = [ {
+          name = "UI_URL"
+          value = "http://${aws_lb.thesis.dns_name}"
+        }
+      ]
       portMappings = [
         {
           containerPort = 8000
@@ -44,9 +55,23 @@ resource "aws_ecs_service" "thesis" {
   launch_type = "FARGATE"
 
   network_configuration {
-    subnets = [aws_subnet.public.id]
+    subnets = [aws_subnet.public_1.id, aws_subnet.public_2.id]
     security_groups = [aws_security_group.ecs_tasks.id]
     assign_public_ip = true
   }
+
+  load_balancer {
+    container_name = "ui"
+    target_group_arn = aws_lb_target_group.ui.arn
+    container_port = 3000
+  }
+
+  load_balancer {
+    container_name = "api"
+    target_group_arn = aws_lb_target_group.api.arn
+    container_port = 8000
+  }
+
+  depends_on = [aws_lb_listener.ui, aws_lb_listener.api, aws_lb.thesis]
 }
 

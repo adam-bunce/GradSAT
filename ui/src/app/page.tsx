@@ -4,6 +4,8 @@ import Card from "@/components/card";
 export default function Home() {
   return (
     <div className={"space-y-10"}>
+      <pre>{JSON.stringify(process.env, null, 2)}</pre>
+
       <h3 className={`text-5xl mb-16 ${playfair.className} leading-snug`}>
         CP-SAT powered course scheduling and graduation planning.
       </h3>

@@ -1,0 +1,50 @@
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" width="103pt" height="70pt"
+     viewBox="0.00 0.00 102.87 70">
+    <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 98.87)">
+        <title>G</title>
+        <polygon fill="white" stroke="none" points="-4,4 -4,-98.87 98.87,-98.87 98.87,4 -4,4"/>
+        <!-- A -->
+        <g id="node1" class="node">
+            <title>A</title>
+            <polygon fill="#f8766d" stroke="#ffffff" stroke-width="3"
+                     points="31.62,-94.87 0,-94.87 0,-63.25 31.62,-63.25 31.62,-94.87"/>
+            <text text-anchor="middle" x="15.81" y="-74.86" font-family="Arial" font-size="14.00">A</text>
+        </g>
+        <!-- B -->
+        <g id="node2" class="node">
+            <title>B</title>
+            <polygon fill="#f8766d" stroke="#ffffff" stroke-width="3"
+                     points="63.25,-94.87 31.62,-94.87 31.62,-63.25 63.25,-63.25 63.25,-94.87"/>
+            <text text-anchor="middle" x="47.43" y="-74.86" font-family="Arial" font-size="14.00">B</text>
+        </g>
+        <!-- C -->
+        <g id="node3" class="node">
+            <title>C</title>
+            <polygon fill="#f8766d" stroke="#ffffff" stroke-width="3"
+                     points="94.87,-94.87 63.25,-94.87 63.25,-63.25 94.87,-63.25 94.87,-94.87"/>
+            <text text-anchor="middle" x="79.06" y="-74.86" font-family="Arial" font-size="14.00">C</text>
+        </g>
+        <!-- f -->
+        <g id="node6" class="node">
+            <title>f</title>
+            <polygon fill="#619cff" stroke="#ffffff" stroke-width="3"
+                     points="63.25,-63.25 31.62,-63.25 31.62,-31.62 63.25,-31.62 63.25,-63.25"/>
+            <text text-anchor="middle" x="47.43" y="-43.23" font-family="Arial" font-size="14.00">f</text>
+        </g>
+        <!-- D -->
+        <g id="node4" class="node">
+            <title>D</title>
+            <polygon fill="#f8766d" stroke="#ffffff" stroke-width="3"
+                     points="31.62,-63.25 0,-63.25 0,-31.62 31.62,-31.62 31.62,-63.25"/>
+            <text text-anchor="middle" x="15.81" y="-43.23" font-family="Arial" font-size="14.00">D</text>
+        </g>
+        <!-- g -->
+        <!--        TODO: manually remove a row, move things over..-->
+        <g id="node7" class="node">
+            <title>O</title>
+            <polygon fill="#00ba38" stroke="#ffffff" stroke-width="3"
+                     points="94.87,-63.25 63.25,-63.25 63.25,-31.62 94.87,-31.62 94.87,-63.25"/>
+            <text text-anchor="middle" x="79.06" y="-43.23" font-family="Arial" font-size="14.00">O</text>
+        </g>
+    </g>
+</svg>
