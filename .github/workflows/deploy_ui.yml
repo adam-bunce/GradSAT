@@ -1,4 +1,4 @@
-name: Build and Push to ECR
+name: Build/Push/Deploy UI to ECR
 
 on:
   workflow_dispatch:
@@ -8,9 +8,7 @@ on:
       - main
     paths:
       - 'ui/**'
-      - 'backend/**'
-      - '.github/workflows/**'
-      - 'infra/docker/**'
+      - 'infra/docker/ui.Dockerfile'
 
 jobs:
   build-and-push:
@@ -38,17 +36,10 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: thesis
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Build and push UI
           docker build -f infra/docker/ui.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:ui .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:ui
-          
-#          # Build and push API
-#          docker build -f infra/docker/api.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:api .
-#          docker push $ECR_REGISTRY/$ECR_REPOSITORY:api
 
       - name: Force ECS deployment
         run: |
-          aws ecs update-service --cluster thesis --service thesis-ui --force-new-deployment
-#          aws ecs update-service --cluster thesis --service thesis-api --force-new-deployment
+          aws ecs update-service --cluster thesis --service thesis --force-new-deployment
