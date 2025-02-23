@@ -15,12 +15,6 @@ resource "aws_ecs_task_definition" "thesis" {
     {
       name = "ui"
       image = "${aws_ecr_repository.thesis.repository_url}:ui"
-      environment = [
-        {
-          name = "NEXT_PUBLIC_API_URL"
-          value = "http://${aws_lb.thesis.dns_name}:8000"
-        }
-      ]
       portMappings = [
         {
           containerPort = 3000
@@ -31,11 +25,6 @@ resource "aws_ecs_task_definition" "thesis" {
     {
       name = "api"
       image = "${aws_ecr_repository.thesis.repository_url}:api"
-      environment = [ {
-          name = "UI_URL"
-          value = "http://${aws_lb.thesis.dns_name}"
-        }
-      ]
       portMappings = [
         {
           containerPort = 8000

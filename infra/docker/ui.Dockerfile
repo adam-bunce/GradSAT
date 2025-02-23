@@ -3,7 +3,7 @@ WORKDIR /app
 COPY ui/package*.json ./
 
 ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=NEXT_PUBLIC
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # dep needs to be forced kinda bad maybe ill fix (probably not)
 RUN npm install --force
