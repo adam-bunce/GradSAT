@@ -1,12 +1,10 @@
-# Get AZs for the region
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
-# Two public subnets in different AZs
 resource "aws_subnet" "public_1" {
   vpc_id     = aws_vpc.main.id
-  cidr_block = "10.0.4.0/24"  # Adjust CIDR as needed
+  cidr_block = "10.0.4.0/24"
   availability_zone = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
@@ -17,7 +15,7 @@ resource "aws_subnet" "public_1" {
 
 resource "aws_subnet" "public_2" {
   vpc_id     = aws_vpc.main.id
-  cidr_block = "10.0.3.0/24"  # Adjust CIDR as needed
+  cidr_block = "10.0.3.0/24"
   availability_zone = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = true
 

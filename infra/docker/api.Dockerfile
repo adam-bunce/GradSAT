@@ -12,6 +12,10 @@ COPY backend/pyproject.toml backend/poetry.lock ./
 # Install dependencies
 RUN poetry install --no-interaction --no-ansi --no-root
 
+# cors
+ARG UI_URL
+ENV UI_URL=$UI_URL
+
 # Copy project files (diff step from deps for layer efficency)
 COPY backend/ .
 

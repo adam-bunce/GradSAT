@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import re
 from collections import defaultdict
 from enum import Enum
@@ -24,12 +25,16 @@ from scout_platform.cp_sat.time_tables.model import (
     ForcedConflict,
     OptimizationTarget,
 )
+
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[os.getenv("UI_URL")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
