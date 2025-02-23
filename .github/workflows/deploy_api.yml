@@ -2,13 +2,10 @@ name: Build/Push/Deploy API to ECR
 
 on:
   workflow_dispatch:
-
-  push:
-    branches:
-      - main
-    paths:
-      - 'backend/**'
-      - 'infra/docker/api.Dockerfile'
+    inputs:
+      lb_addr:
+        type: string
+        description: address of load balancer for service (no port, need protocol)
 
 jobs:
   build-and-push:
