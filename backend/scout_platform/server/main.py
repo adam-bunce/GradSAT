@@ -158,6 +158,7 @@ course_maps: dict = {
 @app.post("/planner-generate")
 def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GeneratePlanResponse:
     print("enter verify grad req")
+    print("generate req:", genPlanReq)
     sem_counts = defaultdict(int)
     for course, sem in genPlanReq.taken_in:
         sem_counts[sem] += 1
