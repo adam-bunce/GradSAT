@@ -157,6 +157,7 @@ course_maps: dict = {
 
 @app.post("/planner-generate")
 def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GeneratePlanResponse:
+    print("enter verify grad req")
     sem_counts = defaultdict(int)
     for course, sem in genPlanReq.taken_in:
         sem_counts[sem] += 1
@@ -186,6 +187,7 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
         config=gr_config,
     )
 
+
     for course, semesterInt in genPlanReq.completed_courses:
         solver.take_class_in(course, semesterInt)
 
@@ -198,6 +200,7 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
     try:
         solution = solver.solve()
     except Exception as e:
+        print("error solving generation model")
         raise HTTPException(status_code=500, detail=str(e))
 
     if len(solution.taken_courses) == 0:
@@ -221,7 +224,6 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
         try:
             res.issues = feas_solver.solve()
         except Exception as e:
-            raise e
             raise HTTPException(status_code=500, detail=str(e))
 
         # res.issues.append("Failed to find solution")
