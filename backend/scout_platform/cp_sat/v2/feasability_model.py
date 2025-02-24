@@ -341,20 +341,22 @@ class GraduationRequirementsFeasabilitySolver:
             case _:
                 raise Exception("Unhandled CourseType")
 
+        print("b",courses_to_filter)
         if f.programs:
             courses_to_filter = [
                 (course_code, course_taken_var)
                 for course_code, course_taken_var in courses_to_filter
                 if self.problem_instance.courses.loc[course_code]["program"]
-                   in f.programs
+                in f.programs
             ]
+        print("a", courses_to_filter)
 
         if f.year_levels:
             courses_to_filter = [
                 (course_code, course_taken_var)
                 for course_code, course_taken_var in courses_to_filter
                 if self.problem_instance.courses.loc[course_code]["year_level"]
-                   in f.year_levels
+                in f.year_levels
             ]
 
         if f.course_names:

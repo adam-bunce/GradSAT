@@ -123,11 +123,6 @@ def process_pdf(file: UploadFile = File(...)):
     return res
 
 
-@app.post("/generate-suggestions")
-def suggest(problem_info: list[CourseSelection]):
-    return "ok"
-
-
 class PlannedCourseType(Enum):
     UNKNOWN = 0
     USER_COMPLETED = 1
@@ -173,7 +168,9 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
     if len(course_names) != len(set(course_names)):
         res = GeneratePlanResponse(courses=[], issues=[])
         for course in [s for s in set(course_names) if course_names.count(s) > 1]:
-            res.issues.append(SolverFeedback(category="Course Repeated", reason=f"Attempt to {course} take {course_names.count(course)} times", variable=False))
+            res.issues.append(SolverFeedback(category="Course Repeated",
+                                             reason=f"Attempt to {course} take {course_names.count(course)} times",
+                                             variable=False))
 
         return res
 
@@ -214,7 +211,8 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
         feas_solver = GraduationRequirementsFeasabilitySolver(
             problem_instance=gr_feas_instance,
             config=GraduationRequirementsConfig(print_stats=False),
-            completed_classes=[course for course, _ in genPlanReq.completed_courses] + [course for course, _ in genPlanReq.taken_in]
+            completed_classes=[course for course, _ in genPlanReq.completed_courses] + [course for course, _ in
+                                                                                        genPlanReq.taken_in]
         )
 
         for course, semesterInt in genPlanReq.taken_in:
@@ -244,6 +242,49 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
                                              course_type=course_type))
 
     return res
+
+
+class VerifyPlanRequest(BaseModel):
+    completed_courses: list[tuple[str, int]]
+    taken_in: list[tuple[str, int]]
+    course_map: Literal["computer-science"]
+    semester_layout: dict[str, int]
+
+
+class VerifyPlanResponse(BaseModel):
+    issues: list[SolverFeedback]
+
+
+@app.post("/graduation-verification")
+def verify_graduation_requirements(verifyReq: VerifyPlanRequest) -> VerifyPlanResponse:
+    res = VerifyPlanResponse(issues=[])
+    try:
+        feedback = verify_grad_req(verifyReq.taken_in, verifyReq.semester_layout, verifyReq.completed_courses)
+        res.issues = feedback
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def verify_grad_req(taken_in: list[tuple[str, int]], semester_layout: dict[str, int],
+                    completed_courses: list[tuple[str, int]]) -> list[SolverFeedback]:
+    gr_feas_instance = GraduationRequirementsInstanceFeas(
+        program_map=get_cs_program_map_feas(),
+        semesters=list(semester_layout.keys()),
+        pickle_path="scout_platform/cp_sat/v2/uoit_courses_copy.pickle"
+    )
+
+    feas_solver = GraduationRequirementsFeasabilitySolver(
+        problem_instance=gr_feas_instance,
+        config=GraduationRequirementsConfig(print_stats=False),
+        completed_classes=[course for course, _ in completed_courses] + [course for course, _ in taken_in]
+    )
+
+    for course, semesterInt in taken_in:
+        feas_solver.take_class_in(course, semesterInt)
+
+    feedback_list = feas_solver.solve()
+    return feedback_list
 
 
 @app.get("/health")
