@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import CourseSearch from "@/components/course-search";
 import { useEffect, useState } from "react";
-import { CourseSelection, CourseType } from "@/app/verify_v2/types";
+import { CourseSelection, CourseType } from "@/app/verify/types";
 import { Button } from "@/components/ui/button";
 
 const courseTypeToColour = new Map<CourseType, string>([
@@ -188,7 +188,7 @@ export default function SemesterCourseInput({
               userCourseInput
                 .find((course) => course.id == selectedCourseId)
                 ?.course_name.toUpperCase()
-            : "Select Desired Droppable"}
+            : "Select Desired Course"}
         </DialogTitle>
 
         <div>

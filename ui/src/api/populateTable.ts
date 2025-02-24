@@ -1,4 +1,4 @@
-import { CourseSelection, PlanResponse } from "@/app/verify_v2/types";
+import { CourseSelection, PlanResponse } from "@/app/verify/types";
 
 // class GeneratePlanRequest(BaseModel):
 // completed_courses: list[str]
@@ -25,12 +25,8 @@ export default async function populateTable(
       Y4_Fall: 7,
       Y4_Winter: 8,
     },
-    // course_ratings: list[str, int]
     course_ratings: course_ratings,
   };
-
-  console.log("course_ratings:", course_ratings);
-  console.log("taken_in:", taken_in);
 
   const response = await fetch(
     process.env.NEXT_PUBLIC_API_URL + "/planner-generate",
@@ -49,9 +45,4 @@ export default async function populateTable(
   const tmp = await response.json();
   console.log(tmp);
   return tmp;
-
-  // let res: CourseSelection[] = []
-  // for (let course of tmp.courses) {
-  //   res.push(course[""])
-  // }
 }

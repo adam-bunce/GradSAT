@@ -26,3 +26,7 @@ export interface PlanResponse {
   courses: CourseSelection[];
   issues: SolverFeedback[];
 }
+
+export interface VerifyResponse {
+  issues: SolverFeedback[];
+}

@@ -59,12 +59,7 @@ export default async function generateTimeTable(
   forcedConflicts: ForcedConflict[],
   optimizationTarget: OptimizationTarget,
 ): Promise<GenerateTimeTableResponse> {
-  // TODO remove things where not all 3 are present
-  // TODO: read url from config
-
-  console.log("optimiztion target:", optimizationTarget);
-
-  // controlled from cannot be undefined, so remove empty strings
+  // controlled forum cannot be undefined, so remove empty strings
   let filter_constraints = filterConstraints.map(({ uuid, ...rest }) => rest);
   for (let i = 0; i < filter_constraints.length; i++) {
     const targets = ["eq", "lte", "gte"];
@@ -98,7 +93,6 @@ export default async function generateTimeTable(
     },
   );
 
-  // TODO: make more robust
   if (!response.ok) {
     throw new Error("Generate Time Table Response Not OK");
   }

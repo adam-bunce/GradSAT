@@ -3,11 +3,20 @@ resource "aws_ecs_cluster" "thesis" {
 
 }
 
+resource "aws_cloudwatch_log_group" "ecs_logs" {
+  name = "/ecs/thesis"
+  retention_in_days = 1
+}
+
+
 resource "aws_ecs_task_definition" "thesis" {
   family = "thesis"
   requires_compatibilities = ["FARGATE"]
-  cpu = 256
-  memory = 512
+#  cpu = 256
+#  memory = 512
+
+  cpu    = 4096  # 4 vCPU
+  memory = 8192  # 8GB RAM
   network_mode = "awsvpc"
   execution_role_arn = aws_iam_role.ecs_task_execution.arn
 
@@ -31,6 +40,15 @@ resource "aws_ecs_task_definition" "thesis" {
           hostPort = 8000
         }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group" = aws_cloudwatch_log_group.ecs_logs.name
+          "awslogs-region" = "us-east-1"
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
     }
   ])
 

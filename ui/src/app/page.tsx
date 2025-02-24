@@ -6,8 +6,6 @@ import Card from "@/components/card";
 export default function Home() {
   return (
     <div className={"space-y-10"}>
-      <pre>{JSON.stringify(process.env.NEXT_PUBLIC_API_URL, null, 2)}</pre>
-
       <h3 className={`text-5xl mb-16 ${playfair.className} leading-snug`}>
         CP-SAT powered course scheduling and graduation planning.
       </h3>
@@ -26,7 +24,7 @@ export default function Home() {
         />
 
         <Card
-          header="Droppable Exploration"
+          header="Course Exploration"
           body="Easily view course offerings with our improved UI & UX"
           image_url="dag.png"
         />
@@ -35,7 +33,7 @@ export default function Home() {
       <div className={"divider"}></div>
 
       <div>
-        <h2 className={`text-2xl font-semibold`}>How It Works</h2>
+        <h2 className={`text-2xl font-semibold pb-3`}>How It Works</h2>
         <ol className={"space-y-2"}>
           <li>
             <h3 className={`text-lg font-semibold`}>Scrape:</h3>

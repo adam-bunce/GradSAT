@@ -1,19 +1,35 @@
+import { VerifyResponse } from "@/app/verify/types";
+
 interface graduationVerificationResponse {
   can_graduate: boolean;
 }
 
 export default async function verifyGraduation(
-  completed_courses: string,
-): Promise<graduationVerificationResponse> {
-  completed_courses = completed_courses.replace(/ /g, "");
-  const completed_courses_arr = completed_courses.split(",");
+  taken_in: [][],
+  completed_courses: [][],
+): Promise<VerifyResponse> {
+  const body = {
+    completed_courses: completed_courses,
+    taken_in: taken_in,
+    course_map: "computer-science",
+    semester_layout: {
+      Y1_Fall: 1,
+      Y1_Winter: 2,
+      Y2_Fall: 3,
+      Y2_Winter: 4,
+      Y3_Fall: 5,
+      Y3_Winter: 6,
+      Y4_Fall: 7,
+      Y4_Winter: 8,
+    },
+  };
 
   const response = await fetch(
     process.env.NEXT_PUBLIC_API_URL + "/graduation-verification",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed_courses: completed_courses_arr }),
+      body: JSON.stringify(body),
     },
   );
 

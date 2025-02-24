@@ -33,7 +33,7 @@ export default function CoursePreferences({ courses, setParentPreferences }) {
   return (
     <div>
       <Input
-        placeholder={"Search Droppable Codes"}
+        placeholder={"Search Course Codes"}
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
       />
@@ -44,7 +44,10 @@ export default function CoursePreferences({ courses, setParentPreferences }) {
             course.toLowerCase().includes(searchTerm.toLowerCase()),
           )
           .map((course) => (
-            <div key={course} className={"flex flex-row justify-between"}>
+            <div
+              key={course}
+              className={"flex flex-row justify-between space-y-2"}
+            >
               <div
                 className={
                   "flex flex-row " + rating_to_colours[courseRatings[course]]

@@ -9,8 +9,7 @@ export default function Header() {
   const pages: Record<string, string> = {
     "/generate": "Generate",
     "/verify": "Verify",
-    "/verify_v2": "V2erify",
-    "/explore": "Explore",
+    // "/explore": "Explore",
   };
 
   return (

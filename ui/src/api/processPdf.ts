@@ -1,4 +1,4 @@
-import { CourseSelection } from "@/app/verify_v2/types";
+import { CourseSelection } from "@/app/verify/types";
 
 interface processPdfResponse {
   matches: string[];

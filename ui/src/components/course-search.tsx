@@ -24,7 +24,7 @@ export default function CourseSearch({ courses, onChange }) {
   return (
     <div>
       <Input
-        placeholder={"Search For A Droppable"}
+        placeholder={"Search For A Course"}
         onChange={(event) =>
           setRecommendations(filterSuggestions(event.target.value))
         }

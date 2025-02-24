@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, InfoIcon } from "lucide-react";
 import { Fragment } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -39,7 +39,11 @@ const SolverFeedbackToWidget = (feedback: SolverFeedback, id: number) => {
   );
 };
 
-export default function RequirementsStatus({ issues, isLoading }) {
+export default function RequirementsStatus({
+  issues,
+  isLoading,
+  hasSubmitted,
+}) {
   if (isLoading) {
     return (
       <ScrollArea className={"h-64 space-y-2 pt-0 pb-3"}>
@@ -59,6 +63,18 @@ export default function RequirementsStatus({ issues, isLoading }) {
           <div></div>
         </div>
       </ScrollArea>
+    );
+  }
+
+  if (!hasSubmitted) {
+    return (
+      <div className={"flex items-center gap-3"}>
+        <InfoIcon className={"w-5 h-5  flex-shrink-0"} />
+        <span className={"font-medium text-zinc-500"}>
+          Press <span className={"text-lime-700"}>Verify</span> or{" "}
+          <span className={"text-sky-700"}>Auto-Populate</span> to check status.
+        </span>
+      </div>
     );
   }
 
