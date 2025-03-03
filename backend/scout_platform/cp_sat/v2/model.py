@@ -52,8 +52,6 @@ class FilterConstraint(BaseModel):
     Defaults to all if not specified. filter narrows.
     """
 
-    # uuid: str
-
     lte: Optional[int] = Field(
         description="maximum credit hours for filters", default=None
     )
@@ -152,7 +150,7 @@ class _CourseVariables:
         )
 
         self.credit_hours_pre_reqisite_met = CreditHourPrerequisiteDict(
-            self.model, self.taken_in, self.credit_hours_per_semester
+            self.model, self.taken_in, self.credit_hours_per_semester, self.taken
         )
 
         self.standing_pre_requisite_met = StandingPrerequisiteDict(
@@ -271,13 +269,12 @@ class GraduationRequirementsSolver:
         self.model.add(c)
 
     def apply_credit_restrictions(self, course: str, restrictions: list[str]):
-        # TODO: why is this only spreading the first restricitn?
         course_codes = [course, *restrictions[0]]
         course_codes = list(
             filter(lambda x: x in self._class_vars.courses.index.values, course_codes)
         )
         courses_taken_vars = self._class_vars.taken.loc[course_codes].values
-        self.model.add_at_most_one(courses_taken_vars)
+        self.model.add(sum(courses_taken_vars) <= 1)
 
     def replace_pre_reqs_with_dvars(
         self, course_code: str, pre_reqs: list[list[str]]
@@ -362,12 +359,12 @@ class GraduationRequirementsSolver:
         self, course_code: str, co_requisite_options: list[list[str]]
     ):
         course_taken = self._class_vars.taken[course_code]
+        print("co requisite being applied for", course_code, co_requisite_options)
 
         met_co_requisites = [
             are_all_true(
                 self.model,
                 [
-                    # flag  "course"
                     self._class_vars.taken_concurrently[(coreq, course_code)]
                     for coreq in coreq_option
                 ],
@@ -465,7 +462,6 @@ class GraduationRequirementsSolver:
     def apply_filter_constraint(self, f: FilterConstraint):
         courses_to_filter = self.collect_filtered_variables(f.filter)
 
-
         # Dependant variable representing the # of credit hours we've taken in this subst of courses
         filter_set_credit_hours = self.model.new_int_var(
             lb=0, ub=10_000, name="filter_set_credit_hours"
@@ -487,8 +483,10 @@ class GraduationRequirementsSolver:
 
         if f.lte:
             self.model.add(filter_set_credit_hours <= SCALE_FACTOR * f.lte)
+            print("applied <= filter constraint for", f.name)
         if f.gte:
             self.model.add(filter_set_credit_hours >= SCALE_FACTOR * f.gte)
+            print("applied >= filter constraint for", f.name)
 
     def _add_constraints(self):
         self._class_vars.courses.apply(self.courses_taken_at_most_once, axis=1)
@@ -534,15 +532,14 @@ class GraduationRequirementsSolver:
             if co_requisite_option:
                 self.apply_co_requisite(course_code, co_requisite_option)
 
-        # for course_code, post_requisites in [
-        #     ("csci4410u", [["csci4420u"]]),
-        # ]:
-        #     if post_requisites:
-        #         self.apply_post_requisite(course_code, post_requisites)
-        #
-        # self.add_minimum_year_constraint("csci4040u", 3)
+            if course_code == "csci2040u":
+                print("HIT csic2040u")
+                print(co_requisite_option)
+
+        self.apply_co_requisite("csci2040u", [["csci2020u"]])
 
         for filter_constraint in self.problem_instance.filter_constraints:
+
             self.apply_filter_constraint(filter_constraint)
 
     def _build_model(self):
@@ -578,6 +575,9 @@ class GraduationRequirementsSolver:
                     )
 
                     courses_taken_just_codes.append(class_name)
+
+            for courses in courses_taken.values():
+                print(courses)
 
             if self.config.print_stats:
                 print_statistics(self.solver)

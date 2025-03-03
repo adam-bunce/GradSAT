@@ -12,11 +12,11 @@ resource "aws_cloudwatch_log_group" "ecs_logs" {
 resource "aws_ecs_task_definition" "thesis" {
   family = "thesis"
   requires_compatibilities = ["FARGATE"]
-#  cpu = 256
-#  memory = 512
+  cpu = 256
+  memory = 512
 
-  cpu    = 4096  # 4 vCPU
-  memory = 8192  # 8GB RAM
+#  cpu    = 4096  # 4 vCPU
+#  memory = 8192  # 8GB RAM
   network_mode = "awsvpc"
   execution_role_arn = aws_iam_role.ecs_task_execution.arn
 

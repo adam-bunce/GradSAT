@@ -7,6 +7,8 @@ interface graduationVerificationResponse {
 export default async function verifyGraduation(
   taken_in: [][],
   completed_courses: [][],
+  must_take: string[],
+  must_not_take: string[],
 ): Promise<VerifyResponse> {
   const body = {
     completed_courses: completed_courses,
@@ -22,6 +24,8 @@ export default async function verifyGraduation(
       Y4_Fall: 7,
       Y4_Winter: 8,
     },
+    must_take: must_take,
+    must_not_take: must_not_take,
   };
 
   const response = await fetch(

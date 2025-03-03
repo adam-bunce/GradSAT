@@ -1,7 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import SemesterCourseInput from "@/components/semester-courses-input";
@@ -33,10 +33,27 @@ export default function Page() {
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [userHasSubmitted, setUserHasSubmitted] = useState(false);
   const [courseStarPreferences, setCourseStarPreferences] = useState([]);
+  const [courseLikes, setCourseLikes] = useState({});
+  const [courseDislikes, setCourseDislikes] = useState({});
 
   const validateGraduation = async () => {
     setUserHasSubmitted(true);
     setIsFeedbackLoading(true);
+
+    let likes = [];
+    Object.keys(courseLikes).forEach((key) => {
+      if (courseLikes[key]) {
+        likes.push(key.toLowerCase());
+      }
+    });
+
+    let dislikes = [];
+    Object.keys(courseDislikes).forEach((key) => {
+      if (courseDislikes[key]) {
+        dislikes.push(key.toLowerCase());
+      }
+    });
+
     let taken_in = [];
     let completed_in = [];
 
@@ -49,7 +66,12 @@ export default function Page() {
     }
 
     try {
-      const res = await verifyGraduation(taken_in, completed_in);
+      const res = await verifyGraduation(
+        taken_in,
+        completed_in,
+        likes,
+        dislikes,
+      );
       setSolverFeedback(res.issues);
     } catch (err) {
       toast({
@@ -134,12 +156,32 @@ export default function Page() {
       }
     }
 
+    let likes = [];
+    Object.keys(courseLikes).forEach((key) => {
+      if (courseLikes[key]) {
+        likes.push(key.toLowerCase());
+      }
+    });
+
+    let dislikes = [];
+    Object.keys(courseDislikes).forEach((key) => {
+      if (courseDislikes[key]) {
+        dislikes.push(key.toLowerCase());
+      }
+    });
+
     setUserHasSubmitted(true);
     setIsLoading(true);
     const tmp = Object.entries(courseStarPreferences).map(([k, v]) => [k, v]);
 
     try {
-      const res = await populateTable(taken_in, completed_in, tmp);
+      const res = await populateTable(
+        taken_in,
+        completed_in,
+        tmp,
+        likes,
+        dislikes,
+      );
 
       console.log(res);
 
@@ -246,6 +288,8 @@ export default function Page() {
               <CoursePreferences
                 courses={courses.courses}
                 setParentPreferences={setCourseStarPreferences}
+                setParentDislikes={setCourseDislikes}
+                setParentLikes={setCourseLikes}
               />
             </div>
           </div>

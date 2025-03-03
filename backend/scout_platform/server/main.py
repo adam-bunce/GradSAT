@@ -16,7 +16,7 @@ from scout_platform.cp_sat.v2.model import GraduationRequirementsInstance, Gradu
     GraduationRequirementsSolver, CourseType
 from scout_platform.scraper.models import ListOfMinimumClassInfo
 from scout_platform.cp_sat.v2.feasability_model import get_cs_program_map_feas, \
-    GraduationRequirementsInstanceFeas, GraduationRequirementsFeasabilitySolver, SolverFeedback
+    GraduationRequirementsInstanceFeas, GraduationRequirementsFeasabilitySolver, SolverFeedback, ProgramMapFeas
 from scout_platform.cp_sat.time_tables.main import generate_multiple_optimal_schedules
 from scout_platform.cp_sat.time_tables.model import (
     TTFilterConstraint,
@@ -142,6 +142,8 @@ class GeneratePlanRequest(BaseModel):
     course_map: Literal["computer-science"]
     semester_layout: dict[str, int]  # semester name -> # of courses person wants to take
     course_ratings: list[tuple[str, int]]
+    must_take: list[str]
+    must_not_take: list[str]
 
 
 class GeneratePlanResponse(BaseModel):
@@ -150,15 +152,14 @@ class GeneratePlanResponse(BaseModel):
     issues: list[SolverFeedback]
 
 
-course_maps: dict = {
+course_maps: dict[str, ProgramMapFeas] = {
     "computer-science": get_cs_program_map_feas()
 }
 
 
 @app.post("/planner-generate")
 def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GeneratePlanResponse:
-    print("enter verify grad req")
-    print("generate req:", genPlanReq)
+    print("enter planner generate")
     sem_counts = defaultdict(int)
     for course, sem in genPlanReq.taken_in:
         sem_counts[sem] += 1
@@ -177,7 +178,7 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
         return res
 
     gr_instance = GraduationRequirementsInstance(
-        program_map=course_maps[genPlanReq.course_map],  # TODO: theres two types for this right now
+        program_map=course_maps[genPlanReq.course_map],
         semesters=list(genPlanReq.semester_layout.keys()),
         pickle_path="scout_platform/cp_sat/v2/uoit_courses_copy.pickle",
     )
@@ -188,12 +189,17 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
         config=gr_config,
     )
 
-
     for course, semesterInt in genPlanReq.completed_courses:
         solver.take_class_in(course, semesterInt)
 
     for course, semesterInt in genPlanReq.taken_in:
         solver.take_class_in(course, semesterInt)
+
+    for course in genPlanReq.must_take:
+        solver.take_class(course)
+
+    for course in genPlanReq.must_not_take:
+        solver.dont_take_class(course)
 
     solver.set_star_rating_maximization_target(genPlanReq.course_ratings)
 
@@ -216,11 +222,19 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
             problem_instance=gr_feas_instance,
             config=GraduationRequirementsConfig(print_stats=False),
             completed_classes=[course for course, _ in genPlanReq.completed_courses] + [course for course, _ in
-                                                                                        genPlanReq.taken_in]
+                                                                                        genPlanReq.taken_in],
+            must_take=genPlanReq.must_take,
+            must_not_take=genPlanReq.must_not_take
         )
 
         for course, semesterInt in genPlanReq.taken_in:
             feas_solver.take_class_in(course, semesterInt)
+
+        for course in genPlanReq.must_take:
+            feas_solver.take_class(course)
+
+        for course in genPlanReq.must_not_take:
+            feas_solver.dont_take_class(course)
 
         try:
             res.issues = feas_solver.solve()
@@ -252,7 +266,8 @@ class VerifyPlanRequest(BaseModel):
     taken_in: list[tuple[str, int]]
     course_map: Literal["computer-science"]
     semester_layout: dict[str, int]
-
+    must_take: list[str]
+    must_not_take: list[str]
 
 class VerifyPlanResponse(BaseModel):
     issues: list[SolverFeedback]
@@ -260,9 +275,18 @@ class VerifyPlanResponse(BaseModel):
 
 @app.post("/graduation-verification")
 def verify_graduation_requirements(verifyReq: VerifyPlanRequest) -> VerifyPlanResponse:
+    course_names = [course for course, _ in verifyReq.taken_in]
+    if len(course_names) != len(set(course_names)):
+        res = GeneratePlanResponse(courses=[], issues=[])
+        for course in [s for s in set(course_names) if course_names.count(s) > 1]:
+            res.issues.append(SolverFeedback(category="Course Repeated",
+                                             reason=f"Attempt to {course} take {course_names.count(course)} times",
+                                             variable=False))
+
+        return res
     res = VerifyPlanResponse(issues=[])
     try:
-        feedback = verify_grad_req(verifyReq.taken_in, verifyReq.semester_layout, verifyReq.completed_courses)
+        feedback = verify_grad_req(verifyReq.taken_in, verifyReq.semester_layout, verifyReq.completed_courses, verifyReq.must_take, verifyReq.must_not_take)
         res.issues = feedback
         return res
     except Exception as e:
@@ -270,7 +294,7 @@ def verify_graduation_requirements(verifyReq: VerifyPlanRequest) -> VerifyPlanRe
 
 
 def verify_grad_req(taken_in: list[tuple[str, int]], semester_layout: dict[str, int],
-                    completed_courses: list[tuple[str, int]]) -> list[SolverFeedback]:
+                    completed_courses: list[tuple[str, int]], must_take: list[str], must_not_take: list[str]) -> list[SolverFeedback]:
     gr_feas_instance = GraduationRequirementsInstanceFeas(
         program_map=get_cs_program_map_feas(),
         semesters=list(semester_layout.keys()),
@@ -280,11 +304,21 @@ def verify_grad_req(taken_in: list[tuple[str, int]], semester_layout: dict[str, 
     feas_solver = GraduationRequirementsFeasabilitySolver(
         problem_instance=gr_feas_instance,
         config=GraduationRequirementsConfig(print_stats=False),
-        completed_classes=[course for course, _ in completed_courses] + [course for course, _ in taken_in]
+        completed_classes=[course for course, _ in completed_courses] + [course for course, _ in taken_in],
+        must_not_take=must_not_take,
+        must_take=must_take
+
     )
 
     for course, semesterInt in taken_in:
         feas_solver.take_class_in(course, semesterInt)
+
+    # NOTE: this is only used in generation i think.
+    # for course in must_take:
+    #     feas_solver.take_class(course)
+    #
+    # for course in must_not_take:
+    #     feas_solver.dont_take_class(course)
 
     feedback_list = feas_solver.solve()
     return feedback_list

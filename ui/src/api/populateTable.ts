@@ -1,15 +1,11 @@
-import { CourseSelection, PlanResponse } from "@/app/verify/types";
-
-// class GeneratePlanRequest(BaseModel):
-// completed_courses: list[str]
-// taken_in: list[tuple[str, int]]
-// course_map: Literal["computer-science"]
-// semester_layout: dict[str, int]  # semester name -> # of courses person wants to take
+import { PlanResponse } from "@/app/verify/types";
 
 export default async function populateTable(
   taken_in: [][],
   completed_courses: [][],
   course_ratings: [][],
+  must_take: string[],
+  must_not_take: string[],
 ): Promise<PlanResponse> {
   const body = {
     completed_courses: completed_courses,
@@ -26,6 +22,8 @@ export default async function populateTable(
       Y4_Winter: 8,
     },
     course_ratings: course_ratings,
+    must_take: must_take,
+    must_not_take: must_not_take,
   };
 
   const response = await fetch(

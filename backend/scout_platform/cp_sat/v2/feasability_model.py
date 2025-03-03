@@ -7,8 +7,7 @@ import pandas as pd
 from ortools.sat.python import cp_model
 from pydantic import BaseModel, Field, ConfigDict
 
-from scout_platform.cp_sat.v2.model import GraduationRequirementsSolution, Filter, CourseType, \
-    GraduationRequirementsConfig, GraduationRequirementsInstance
+from scout_platform.cp_sat.v2.model import Filter, CourseType, GraduationRequirementsConfig
 from scout_platform.cp_sat.v2.static import all_semesters, Programs
 
 from scout_platform.cp_sat.v2.dependent_variables import (
@@ -19,7 +18,7 @@ from scout_platform.cp_sat.v2.dependent_variables import (
     TakenAfterDict,
     CreditHourPrerequisiteDict,
     StandingPrerequisiteDict,
-    CreditHoursPerSemesterDict, are_any_true, false_var,
+    CreditHoursPerSemesterDict, are_any_true, false_var, TakenBeforeOrConcurrentlyDictFeas,
 )
 
 
@@ -27,8 +26,6 @@ class FilterConstraintFeas(BaseModel):
     """
     Defaults to all if not specified. filter narrows.
     """
-
-    # uuid: str
 
     lte: Optional[int] = Field(
         description="maximum credit hours for filters", default=None
@@ -38,6 +35,7 @@ class FilterConstraintFeas(BaseModel):
     )
 
     filter: Filter
+
     name: str
 
 
@@ -85,7 +83,7 @@ class _CourseVariables:
         self.taken_before = TakenBeforeDict(
             self.model, self.taken_in, self.taken, self.all_taken
         )
-        self.taken_concurrently = TakenBeforeOrConcurrentlyDict(
+        self.taken_concurrently = TakenBeforeOrConcurrentlyDictFeas(
             self.model, self.taken_in, self.taken, self.all_taken
         )
 
@@ -98,7 +96,7 @@ class _CourseVariables:
         )
 
         self.credit_hours_pre_reqisite_met = CreditHourPrerequisiteDict(
-            self.model, self.taken_in, self.credit_hours_per_semester
+            self.model, self.taken_in, self.credit_hours_per_semester, self.taken
         )
 
         self.standing_pre_requisite_met = StandingPrerequisiteDict(
@@ -169,6 +167,7 @@ class SolverFeedback(BaseModel):
     gte: Optional[int] = None
     current: Optional[int] = None
     contributing_courses: Optional[list[str]] = []
+    weight: int = 1
 
 
 class GraduationRequirementsFeasabilitySolver:
@@ -176,13 +175,18 @@ class GraduationRequirementsFeasabilitySolver:
             self,
             problem_instance: GraduationRequirementsInstanceFeas,
             config: GraduationRequirementsConfig,
-            completed_classes: list[str]
+            completed_classes: list[str],
+            must_take: list[str],
+            must_not_take: list[str]
     ):
         self.problem_instance = problem_instance
         self.config = config
         self.completed_classes = completed_classes
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
+
+        self.must_take_courses: list[str] = must_take
+        self.must_not_take_courses: list[str] = must_not_take
 
         self.filter_assumptions_actual = dict()
         self.solver_feedback: list[SolverFeedback] = []
@@ -232,7 +236,9 @@ class GraduationRequirementsFeasabilitySolver:
 
         fdb = SolverFeedback(variable=v1,
                              category=row.name.split("∈")[0],
-                             reason=f"Required Course Missing")
+                             reason=f"Required Course Missing",
+                             weight=25
+                             )
 
         self.solver_feedback.append(fdb)
 
@@ -243,12 +249,34 @@ class GraduationRequirementsFeasabilitySolver:
         one_of_assumption = self.model.new_bool_var(f"one of {', '.join(class_options)} must be taken")
         c = self._class_vars.taken_as_core.loc[class_options].sum() == 1
         self.model.add(c).only_enforce_if(one_of_assumption)
-        # self.assumptions.append(one_of_assumption)
 
+        # weight set to 3 by manually testing cases. I'd prefer things are treated as "core" rather than electives
+        # during user debug step to avoid confusion.
         fdb = SolverFeedback(variable=one_of_assumption,
                              category="One of Requirement",
-                             reason=f"One of: {", ".join(class_options)} must be taken")
+                             reason=f"One of: {", ".join(class_options)} must be taken",
+                             weight=25
+                             )
 
+        self.solver_feedback.append(fdb)
+
+    def apply_credit_restrictions(self, course: str, restrictions: list[str]):
+        course_codes = [course, *restrictions[0]]
+        course_codes = list(
+            filter(lambda x: x in self._class_vars.courses.index.values, course_codes)
+        )
+        if len(course_codes) == 1:
+            return
+
+        courses_taken_vars = self._class_vars.taken.loc[course_codes].values
+
+        credit_restriction_assumption = self.model.new_bool_var(f"only one of {", ".join(course_codes)} can be taken")
+        fdb = SolverFeedback(variable=credit_restriction_assumption,
+                             category="Credit Restriction",
+                             reason=f"Only One of: {", ".join(course_codes)} can be taken")
+
+        # not sure why .add_at_most_one causes un-sat here /w .oei()
+        self.model.add(sum(courses_taken_vars) <= 1).only_enforce_if(credit_restriction_assumption)
         self.solver_feedback.append(fdb)
 
     def replace_pre_reqs_with_dvars(
@@ -269,6 +297,18 @@ class GraduationRequirementsFeasabilitySolver:
         for conjunction in pre_reqs:
             acc = []
             for pre_req in conjunction:
+                if re.match(patterns["year_standing"], pre_req):
+                    acc.append(
+                        self._class_vars.standing_pre_requisite_met[
+                            (pre_req, course_code)
+                        ]
+                    )
+                if re.match(patterns["credit_hours"], pre_req):
+                    acc.append(
+                        self._class_vars.credit_hours_pre_reqisite_met[
+                            (pre_req, course_code)
+                        ]
+                    )
                 if re.match(patterns["course_code"], pre_req):
                     acc.append(self._class_vars.taken_before[(pre_req, course_code)])
 
@@ -283,12 +323,16 @@ class GraduationRequirementsFeasabilitySolver:
     def apply_pre_requisite(
             self, course: str, prerequisite_options: list[list[str]]
     ) -> bool:
+        if course == "csci4040u":
+            print(course, prerequisite_options)
 
         prerequisite_options_d_vars, ok = self.replace_pre_reqs_with_dvars(
             course, prerequisite_options
         )
 
         if not ok:
+            if course == "csci4040u":
+                print("not ok")
             return False
 
         course_taken = self._class_vars.taken[course]
@@ -302,15 +346,62 @@ class GraduationRequirementsFeasabilitySolver:
 
         have_prereqs = are_any_true(self.model, prereqs_taken_before_course)
 
+        if course == "csci4040u":
+            print(course, prerequisite_options)
+
         # if we took the course without the reqs then that is an issue tbqh
         self.model.add(sum([met_prereq_fdb]) == 0).only_enforce_if([~have_prereqs, course_taken])
 
+        def dnf_to_str(expr):
+            if isinstance(expr, str):
+                return expr
+
+            if isinstance(expr, list):
+                if len(expr) == 0:
+                    return ""
+
+                if isinstance(expr[0], str):
+                    return "(" + ' and '.join(expr) + ")"
+
+                if isinstance(expr[0], list):
+                    return "(" + " or ".join([dnf_to_str(x) for x in expr]) + ")"
+
+            return "ERROR"
+
         fdb = SolverFeedback(variable=met_prereq_fdb,
                              category="Prerequisite Not Met",
-                             reason=f"to take {course}, must satisfy:  {prerequisite_options}")
+                             reason=f"to take {course}, must satisfy:  {dnf_to_str(prerequisite_options)}")
         self.solver_feedback.append(fdb)
 
         return True
+
+    def apply_co_requisite(
+            self, course_code: str, co_requisite_options: list[list[str]]
+    ):
+        met_co_requisites_fdb = self.model.new_bool_var(f"corequisite_met_{course_code}")
+        course_taken = self._class_vars.taken[course_code]
+
+        met_co_requisites = [
+            are_all_true(
+                self.model,
+                [
+                    self._class_vars.taken_concurrently[(coreq, course_code)]
+                    for coreq in coreq_option
+                ],
+            )
+            for coreq_option in co_requisite_options
+        ]
+
+        have_co_reqs = are_any_true(self.model, met_co_requisites)
+
+        # # we only set this feedback when the course was taken without proper co_reqs
+        # # not this line?!
+        self.model.add(met_co_requisites_fdb == 0).only_enforce_if([~have_co_reqs, course_taken])
+
+        fdb = SolverFeedback(variable=met_co_requisites_fdb,
+                             category="Co-Requisite Not Met",
+                             reason=f"to take {course_code}, must satisfy:  {co_requisite_options} concurrently or before")  # TODO: to_str
+        self.solver_feedback.append(fdb)
 
     def collect_filtered_variables(self, f: Filter) -> list[tuple[str, list[any]]]:
         match f.type:
@@ -346,7 +437,7 @@ class GraduationRequirementsFeasabilitySolver:
                 (course_code, course_taken_var)
                 for course_code, course_taken_var in courses_to_filter
                 if self.problem_instance.courses.loc[course_code]["program"]
-                in f.programs
+                   in f.programs
             ]
 
         if f.year_levels:
@@ -354,7 +445,7 @@ class GraduationRequirementsFeasabilitySolver:
                 (course_code, course_taken_var)
                 for course_code, course_taken_var in courses_to_filter
                 if self.problem_instance.courses.loc[course_code]["year_level"]
-                in f.year_levels
+                   in f.year_levels
             ]
 
         if f.course_names:
@@ -367,7 +458,11 @@ class GraduationRequirementsFeasabilitySolver:
         return courses_to_filter
 
     def apply_filter_constraint(self, f: FilterConstraintFeas):
+        if f.name == "Electives":
+            print("ELECTIVES FILTER APPLICAAAAAATOIN")
         courses_to_filter = self.collect_filtered_variables(f.filter)
+        if "hlsc0880u" in courses_to_filter:
+            print("hlsc0880u is a elective")
 
         lte_assumption = self.model.new_bool_var(f.name + " lte")
         gte_assumption = self.model.new_bool_var(f.name + " gte")
@@ -418,14 +513,27 @@ class GraduationRequirementsFeasabilitySolver:
         for course_code, taken_var in self._class_vars.taken.items():
             issue_taking_course = self.model.new_bool_var("issue taking course")
             if str(course_code).upper() in self.completed_classes:
-                self.model.add(taken_var == 1) #.only_enforce_if(issue_taking_course)
-                # fdb = SolverFeedback(variable=issue_taking_course,
-                #                      category="issue taking course (set to 1)",
-                #                      reason=f"unable to take {course_code}",
-                #                      )
-                # self.solver_feedback.append(fdb)
+                if course_code in self.must_take_courses:
+                    self.model.add(taken_var == 1).only_enforce_if(issue_taking_course)
+                    fdb = SolverFeedback(variable=issue_taking_course,
+                                         category="User Preferences",
+                                         reason=f"unable to take {course_code}",
+                                         )
+                    self.solver_feedback.append(fdb)
+                else:
+                    self.model.add(taken_var == 1)
             else:
-                self.model.add(taken_var == 0) #.only_enforce_if(issue_taking_course)
+                # issue here with FORCING things to be true
+                if course_code in self.must_not_take_courses:
+                    self.model.add(taken_var == 0).only_enforce_if(issue_taking_course)
+                    fdb = SolverFeedback(variable=issue_taking_course,
+                                         category="User Preferences",
+                                         reason=f"unable to take avoid taking {course_code}",
+                                         )
+                    self.solver_feedback.append(fdb)
+                else:
+                    self.model.add(taken_var == 0)
+                # .only_enforce_if(issue_taking_course)
                 #
                 # fdb = SolverFeedback(variable=issue_taking_course,
                 #                      category="issue taking course (set to 0)",
@@ -447,6 +555,12 @@ class GraduationRequirementsFeasabilitySolver:
         for option in self.problem_instance.one_of:
             self.one_of(option)
 
+        for course, restrictions in zip(
+                self.problem_instance.courses.index,
+                self.problem_instance.courses["credit_restrictions"],
+        ):
+            if restrictions:
+                self.apply_credit_restrictions(course, restrictions)
 
         for course_code, prerequisite_options in zip(
                 self.problem_instance.courses.index,
@@ -455,6 +569,19 @@ class GraduationRequirementsFeasabilitySolver:
             if prerequisite_options:
                 self.apply_pre_requisite(course_code, prerequisite_options)
 
+        for course_code, co_requisite_option in zip(
+                self.problem_instance.courses.index,
+                self.problem_instance.courses["co_requisites"].values,
+        ):
+            if co_requisite_option:
+                self.apply_co_requisite(course_code, co_requisite_option)
+
+            if course_code == "csci2040u":
+                print("HIT csic2040u")
+                print(co_requisite_option)
+
+        self.apply_co_requisite("csci2040u", [["csci2020u"]])
+
         for filter_constraint in self.problem_instance.filter_constraints:
             self.apply_filter_constraint(filter_constraint)
 
@@ -462,20 +589,13 @@ class GraduationRequirementsFeasabilitySolver:
         self._add_constraints()
 
         # maximize how many are true, false assumptions are invalid model states
-        self.model.maximize(sum([feedback.variable for feedback in self.solver_feedback]))
+        self.model.maximize(sum([feedback.variable * feedback.weight for feedback in self.solver_feedback]))
 
     def take_class_in(self, class_name: str, semester: int):
         class_name = class_name.lower()
         assert 1 <= semester <= 9, "only 8 semesters (1->9)"
 
-        # fdb = self.model.new_bool_var("take class in sem")
-        self.model.add(self._class_vars.taken_in.loc[class_name] == semester)  # .only_enforce_if(fdb)
-
-        # fdb = SolverFeedback(variable=fdb,
-        #                      category="Take Class In",
-        #                      reason=f"Unable to take {class_name} in semester {semester}",
-        #                      )
-        # self.solver_feedback.append(fdb)
+        self.model.add(self._class_vars.taken_in.loc[class_name] == semester)
 
     def solve(self) -> list[SolverFeedback]:
         self.solver.parameters.max_time_in_seconds = self.config.time_limit
@@ -491,18 +611,19 @@ class GraduationRequirementsFeasabilitySolver:
 
             courses_taken = defaultdict(list)
 
-            # print("========================")
-            # for course in self.completed_classes:
-            #     is_elective = self.solver.value(self._class_vars.taken_as_elective[course.lower()])
-            #     is_core = self.solver.value(self._class_vars.taken_as_core[course.lower()])
-            #     print(course, end="")
-            #     if is_elective:
-            #         print("_E")
-            #     if is_core:
-            #         print("_C")
+            print("========================")
+            for course in self.completed_classes:
+                is_elective = self.solver.value(self._class_vars.taken_as_elective[course.lower()])
+                is_core = self.solver.value(self._class_vars.taken_as_core[course.lower()])
+                print(course, end="")
+                if is_elective:
+                    print("_E")
+                if is_core:
+                    print("_C")
 
             res = []
 
+            # TODO: related courses to feedback
             for feedback in self.solver_feedback:
                 if self.solver.value(feedback.variable) == 0:
                     # if True:
@@ -518,8 +639,10 @@ class GraduationRequirementsFeasabilitySolver:
                                 contributing_courses = []
                                 for course_code, taken_var in variables:
                                     if self.solver.value(taken_var) == 1:
-                                        total += 3  # variable # of credit hours exist, this is hardcoded, bad
+                                        total += 3  # variable # of credit hours exist, this is hardcoded, bad # TODO: lookup credit hours
                                         contributing_courses.append(course_code)
+                                print(contributing_courses)
+                                # NOTE: current is not always accurate. will not be present on UI.
                                 feedback.current = total
                                 feedback.contributing_courses = contributing_courses
                                 feedback.gte = fltr.gte
@@ -527,12 +650,37 @@ class GraduationRequirementsFeasabilitySolver:
 
                     res.append(feedback)
 
+            try:
+                print(self._class_vars.taken["hlsc0880u"], self.solver.value(self._class_vars.taken["hlsc0880u"]))
+            except Exception as e:
+                print('err', e)
+
             return res
 
         else:
             print("feas_model INFEASIBLE")
             return [SolverFeedback(variable=false_var(self.model), category="Infeasible Model",
                                    reason="Something went wrong on our end")]
+
+    def take_class(self, class_name: str):
+        assumption = self.model.new_bool_var(f"user wants to take {class_name}")
+        self.model.add(self._class_vars.taken[class_name] == 1).only_enforce_if(assumption)
+
+        fdb = SolverFeedback(variable=assumption,
+                             category="User Preferences",
+                             reason=f"Unable to take {class_name}")
+
+        self.solver_feedback.append(fdb)
+
+    def dont_take_class(self, class_name: str):
+        assumption = self.model.new_bool_var(f"user doesnt want to take {class_name}")
+        self.model.add(self._class_vars.taken[class_name] == 0).only_enforce_if(assumption)
+
+        fdb = SolverFeedback(variable=assumption,
+                             category="User Preferences",
+                             reason=f"Unable avoid taking {class_name}")
+
+        self.solver_feedback.append(fdb)
 
 
 def get_cs_program_map_feas() -> ProgramMapFeas:
@@ -571,14 +719,22 @@ def get_cs_program_map_feas() -> ProgramMapFeas:
         gte=27, filter=Filter(type=CourseType.Elective, programs=science)
     )
 
-    # at least 12 credit hours must be in Senior Computer Science electives, with no more than 15 credit hours being in Computer Science
-    year_4_cs_min_12ch_max_15ch = FilterConstraintFeas(
+    # at least 12 credit hours must be in Senior Computer Science electives
+    year_4_cs_electives_min_12ch = FilterConstraintFeas(
         name="Senior CS Electives",
-        lte=15,
         gte=12,
         filter=Filter(
             programs=[Programs.computer_science],
             year_levels=[4],
+            type=CourseType.Elective,
+        ),
+    )
+    # with no more than 15 credit hours being in Computer Science
+    cs_electives_max_15ch = FilterConstraintFeas(
+        name="CS Electives",
+        lte=15,
+        filter=Filter(
+            programs=[Programs.computer_science],
             type=CourseType.Elective,
         ),
     )
@@ -630,7 +786,8 @@ def get_cs_program_map_feas() -> ProgramMapFeas:
             max_42_credit_hours_at_first_year_level,
             year_4_cs_min_12ch,
             min_27ch_science,
-            year_4_cs_min_12ch_max_15ch,
+            year_4_cs_electives_min_12ch,
+            cs_electives_max_15ch
         ],
     )
 

@@ -26,8 +26,9 @@ const SolverFeedbackToWidget = (feedback: SolverFeedback, id: number) => {
           <div className={"font-medium"}>{feedback.category}</div>
           {feedback.current != null ? (
             <div className={"text-zinc-600 text-sm"}>
-              {" "}
-              {calculateRange(feedback)} | current: {feedback.current}hrs
+              {" requires "}
+              {/*{calculateRange(feedback)} | current: {feedback.current}hrs*/}
+              {calculateRange(feedback)}
             </div>
           ) : (
             <div className={"text-zinc-600 text-sm"}>{feedback.reason}</div>
