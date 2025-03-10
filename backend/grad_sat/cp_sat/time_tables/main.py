@@ -3,10 +3,10 @@ from typing import Generator
 
 from sqlalchemy import select
 
-from scout_platform.db.schema import Course
-from scout_platform.scraper.info_reducer import raw_to_minimum
-from scout_platform.scraper.models import ListOfMinimumClassInfo, MinimumClassInfo
-from scout_platform.cp_sat.time_tables.model import (
+from grad_sat.db.schema import Course
+from grad_sat.scraper.info_reducer import raw_to_minimum
+from grad_sat.scraper.models import ListOfMinimumClassInfo, MinimumClassInfo
+from grad_sat.cp_sat.time_tables.model import (
     TTProblemInstance,
     TTSolver,
     TTFilterConstraint,
@@ -14,7 +14,7 @@ from scout_platform.cp_sat.time_tables.model import (
     TTSolution,
 )
 
-from scout_platform.db.database import get_db, create_url
+from grad_sat.db.database import get_db, create_url
 
 
 def read_data_from_db() -> ListOfMinimumClassInfo:

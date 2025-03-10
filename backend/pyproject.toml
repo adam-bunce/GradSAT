@@ -1,5 +1,5 @@
 [project]
-name = "scout_platform"
+name = "grad_sat"
 version = "0.1.0"
 description = ""
 readme = "README.md"
@@ -25,4 +25,4 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-server="scout_platform.server.main:main"
+server="grad_sat.server.main:main"

@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 from ortools.sat.python import cp_model
 
-from scout_platform.scraper.models import MinimumClassInfo
-from scout_platform.cp_sat.v2.dependent_variables import (
+from grad_sat.scraper.models import MinimumClassInfo
+from grad_sat.cp_sat.v2.dependent_variables import (
     false_var,
     zero_int,
     empty_interval,
@@ -19,7 +19,7 @@ from scout_platform.cp_sat.v2.dependent_variables import (
     create_optional_interval_variable,
     true_var,
 )
-from scout_platform.cp_sat.v2.util import print_statistics
+from grad_sat.cp_sat.v2.util import print_statistics
 
 
 @dataclass

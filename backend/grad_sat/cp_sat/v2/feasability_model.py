@@ -7,10 +7,10 @@ import pandas as pd
 from ortools.sat.python import cp_model
 from pydantic import BaseModel, Field, ConfigDict
 
-from scout_platform.cp_sat.v2.model import Filter, CourseType, GraduationRequirementsConfig
-from scout_platform.cp_sat.v2.static import all_semesters, Programs
+from grad_sat.cp_sat.v2.model import Filter, CourseType, GraduationRequirementsConfig
+from grad_sat.cp_sat.v2.static import all_semesters, Programs
 
-from scout_platform.cp_sat.v2.dependent_variables import (
+from grad_sat.cp_sat.v2.dependent_variables import (
     TakenBeforeDict,
     AllTakenDict,
     are_all_true,

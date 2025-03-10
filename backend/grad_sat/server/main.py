@@ -11,14 +11,14 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
 import pymupdf
 
-from scout_platform.cp_sat.v2.dependent_variables import false_var
-from scout_platform.cp_sat.v2.model import GraduationRequirementsInstance, GraduationRequirementsConfig, \
+from grad_sat.cp_sat.v2.dependent_variables import false_var
+from grad_sat.cp_sat.v2.model import GraduationRequirementsInstance, GraduationRequirementsConfig, \
     GraduationRequirementsSolver, CourseType
-from scout_platform.scraper.models import ListOfMinimumClassInfo
-from scout_platform.cp_sat.v2.feasability_model import get_cs_program_map_feas, \
+from grad_sat.scraper.models import ListOfMinimumClassInfo
+from grad_sat.cp_sat.v2.feasability_model import get_cs_program_map_feas, \
     GraduationRequirementsInstanceFeas, GraduationRequirementsFeasabilitySolver, SolverFeedback, ProgramMapFeas
-from scout_platform.cp_sat.time_tables.main import generate_multiple_optimal_schedules
-from scout_platform.cp_sat.time_tables.model import (
+from grad_sat.cp_sat.time_tables.main import generate_multiple_optimal_schedules
+from grad_sat.cp_sat.time_tables.model import (
     TTFilterConstraint,
     TTProblemInstance,
     TTSolver,
@@ -54,7 +54,7 @@ def read_data(path: str) -> ListOfMinimumClassInfo:
         return ListOfMinimumClassInfo.model_validate_json(tmp)
 
 
-course_list = read_data("scout_platform/cp_sat/time_tables/data.json")
+course_list = read_data("grad_sat/cp_sat/time_tables/data.json")
 
 
 @app.post("/time-table")
@@ -180,7 +180,7 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
     gr_instance = GraduationRequirementsInstance(
         program_map=course_maps[genPlanReq.course_map],
         semesters=list(genPlanReq.semester_layout.keys()),
-        pickle_path="scout_platform/cp_sat/v2/uoit_courses_copy.pickle",
+        pickle_path="grad_sat/cp_sat/v2/uoit_courses_copy.pickle",
     )
     gr_config = GraduationRequirementsConfig(print_stats=False)
 
@@ -214,7 +214,7 @@ def verify_graduation_requirements(genPlanReq: GeneratePlanRequest) -> GenerateP
         gr_feas_instance = GraduationRequirementsInstanceFeas(
             program_map=get_cs_program_map_feas(),
             semesters=list(genPlanReq.semester_layout.keys()),
-            pickle_path="scout_platform/cp_sat/v2/uoit_courses_copy.pickle"
+            pickle_path="grad_sat/cp_sat/v2/uoit_courses_copy.pickle"
         )
 
         # failed to solve
@@ -298,7 +298,7 @@ def verify_grad_req(taken_in: list[tuple[str, int]], semester_layout: dict[str, 
     gr_feas_instance = GraduationRequirementsInstanceFeas(
         program_map=get_cs_program_map_feas(),
         semesters=list(semester_layout.keys()),
-        pickle_path="scout_platform/cp_sat/v2/uoit_courses_copy.pickle"
+        pickle_path="grad_sat/cp_sat/v2/uoit_courses_copy.pickle"
     )
 
     feas_solver = GraduationRequirementsFeasabilitySolver(

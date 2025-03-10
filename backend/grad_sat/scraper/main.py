@@ -1,9 +1,9 @@
 from sqlalchemy.dialects.postgresql import insert
 
-from scout_platform.scraper.uoit_courses import Scraper
-from scout_platform.scraper.models import Model, ClassInfoList, ClassInfo
-from scout_platform.db.database import get_db, create_url
-from scout_platform.db.schema import Course
+from grad_sat.scraper.uoit_courses import Scraper
+from grad_sat.scraper.models import Model, ClassInfoList, ClassInfo
+from grad_sat.db.database import get_db, create_url
+from grad_sat.db.schema import Course
 
 
 def main():

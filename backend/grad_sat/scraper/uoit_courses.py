@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 import bs4
 
-from scout_platform.scraper.models import Model
+from grad_sat.scraper.models import Model
 
 
 class Scraper:

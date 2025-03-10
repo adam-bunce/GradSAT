@@ -3,7 +3,7 @@ from collections import defaultdict
 from enum import Enum
 from typing import Optional
 import re
-from scout_platform.cp_sat.v2.dependent_variables import (
+from grad_sat.cp_sat.v2.dependent_variables import (
     TakenBeforeDict,
     AllTakenDict,
     are_all_true,
@@ -25,12 +25,12 @@ from pydantic import (
 from ortools.sat.python import cp_model
 import pandas as pd
 
-from scout_platform.cp_sat.v2.static import (
+from grad_sat.cp_sat.v2.static import (
     int_to_semester,
     Programs,
     year_to_sem,
 )
-from scout_platform.cp_sat.v2.util import print_statistics
+from grad_sat.cp_sat.v2.util import print_statistics
 
 
 class CourseType(Enum):

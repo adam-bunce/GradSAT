@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 
-from scout_platform.db.schema import Base
+from grad_sat.db.schema import Base
 
 
 def create_url():

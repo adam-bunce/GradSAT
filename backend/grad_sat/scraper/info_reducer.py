@@ -2,7 +2,7 @@ import json
 import os
 from typing import Dict, List
 
-from scout_platform.scraper.models import (
+from grad_sat.scraper.models import (
     ClassInfoList,
     MinimumClassInfo,
     MinimumMeetingTime,

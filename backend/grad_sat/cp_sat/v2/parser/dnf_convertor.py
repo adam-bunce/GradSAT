@@ -3,8 +3,8 @@ import unittest
 from dataclasses import dataclass
 
 from antlr4 import *
-from scout_platform.cp_sat.v2.parser.generated.PrerequisitesParser import PrerequisitesParser
-from scout_platform.cp_sat.v2.parser.generated.PrerequisitesLexer import PrerequisitesLexer
+from grad_sat.cp_sat.v2.parser.generated.PrerequisitesParser import PrerequisitesParser
+from grad_sat.cp_sat.v2.parser.generated.PrerequisitesLexer import PrerequisitesLexer
 
 
 def expr_to_dnf(expression: str) -> list[list[str]]:

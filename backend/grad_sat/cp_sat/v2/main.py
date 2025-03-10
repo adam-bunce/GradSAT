@@ -10,7 +10,7 @@ from model import (
     CourseType,
     Filter,
 )
-from scout_platform.cp_sat.v2.static import (
+from grad_sat.cp_sat.v2.static import (
     all_semesters,
     Programs,
 )

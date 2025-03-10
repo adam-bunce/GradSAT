@@ -1,8 +1,8 @@
 import csv
 from collections import defaultdict
 
-from scout_platform.cp_sat.v2.parser.dnf_convertor import expr_to_dnf
-from scout_platform.cp_sat.v2.static import Programs
+from grad_sat.cp_sat.v2.parser.dnf_convertor import expr_to_dnf
+from grad_sat.cp_sat.v2.static import Programs
 
 from pydantic import (
     BaseModel,

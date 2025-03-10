@@ -1,7 +1,7 @@
 from ortools.sat.python import cp_model
 import pandas as pd
 
-from scout_platform.cp_sat.v2.static import int_to_semester
+from grad_sat.cp_sat.v2.static import int_to_semester
 
 
 def are_all_true(
