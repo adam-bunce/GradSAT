@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Course Search",
-  description: "CP-SAT Powered Information Portal",
+  title: "GradSAT",
+  description: "CP-SAT Powered Academic Planning",
 };
 
 export default function RootLayout({

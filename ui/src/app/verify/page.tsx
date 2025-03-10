@@ -208,16 +208,17 @@ export default function Page() {
 
   return (
     <div className={"space-y-3 lg:-mx-12"}>
-      <div className={"flex flex-col md:flex-row gap-4"}>
-        <div className={"border border-black md:w-1/2 bg-white space-y-2"}>
+      <div className={"flex flex-col md:flex-row gap-3"}>
+        <div className={"border border-black md:w-1/2 bg-white flex flex-col"}>
           <div
-            className={"text-lg p-3 font-semibold border-b border-b-gray-400"}
+            className={"text-lg p-3 font-semibold border-b border-b-gray-400 "}
           >
             Transcript PDF
           </div>
-          <div className={"p-3 space-y-2"}>
+          <div className={"p-3 flex flex-col justify-between h-full gap-2"}>
             <Input
               type="file"
+              className={"h-2/3"}
               placeholder="transcript PDF"
               onChange={handleFileChange}
             />
@@ -229,17 +230,35 @@ export default function Page() {
           <h3
             className={"text-lg p-3 font-semibold border-b border-b-gray-400"}
           >
-            Completed Courses
+            Actions
           </h3>
           <div className={"p-3"}>
-            <span className={"text-lg"}>
-              TODO: modify/view before adding to course plan
-            </span>
+            <div className={"flex flex-col gap-2"}>
+              <Button
+                className={"bg-lime-700 hover:bg-lime-600"}
+                onClick={validateGraduation}
+              >
+                Verify
+              </Button>
+
+              <Button
+                className={"bg-sky-700 hover:bg-sky-600"}
+                onClick={fillInBlanks}
+              >
+                Auto-Populate
+              </Button>
+
+              <Button
+                className={"bg-red-700 hover:bg-red-600"}
+                onClick={clearSuggestions}
+              >
+                Clear
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className={"py-3"}></div>
       <div className={"flex flex-col md:flex-row gap-3"}>
         <div className={"border border-black md:w-2/3 bg-white space-y-2"}>
           <div
@@ -294,29 +313,6 @@ export default function Page() {
             </div>
           </div>
         </div>
-      </div>
-
-      <div className={"flex flex-row gap-2"}>
-        <Button
-          className={"bg-lime-700 hover:bg-lime-600"}
-          onClick={validateGraduation}
-        >
-          Verify
-        </Button>
-
-        <Button
-          className={"bg-sky-700 hover:bg-sky-600"}
-          onClick={fillInBlanks}
-        >
-          Auto-Populate
-        </Button>
-
-        <Button
-          className={"bg-red-700 hover:bg-red-600"}
-          onClick={clearSuggestions}
-        >
-          Clear
-        </Button>
       </div>
 
       <h2 className={"text-lg font-semibold"}>

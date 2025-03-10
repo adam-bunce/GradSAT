@@ -149,12 +149,13 @@ export default function SemesterCourseInput({
             <div className={"grid grid-cols-5 gap-1"}>
               {Array(5)
                 .fill(null)
-                .map(() => {
+                .map((_, idx) => {
                   return (
                     <div
                       className={
                         "bg-zinc-400 animate-pulse h-8 rounded-[2px] px-2 py-1"
                       }
+                      key={idx}
                     ></div>
                   );
                 })}

@@ -37,7 +37,7 @@
         bottom: 0;
         right: 0;
         /*TODO: use own image*/
-        background: url("https://www.trychroma.com/img/noise.jpg");
+        background: url("/noise.jpg");
         opacity: .12;
         pointer-events: none;
         z-index: -1
